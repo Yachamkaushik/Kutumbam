@@ -9,6 +9,8 @@ litertlm = "0.17.1"
 # QNN runtime carrying the Hexagon HTP libs (v79 = 8 Elite, v81 = 8 Elite Gen 5). Matches LiteRT-LM's documented QAIRT 2.42.
 qnnRuntime = "2.42.0"
 mlkitText = "16.0.1"
+room = "2.8.5"
+ksp = "2.3.12"
 
 [libraries]
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
@@ -22,8 +24,12 @@ coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-androi
 litertlm = { module = "com.google.ai.edge.litertlm:litertlm-android", version.ref = "litertlm" }
 qnn-runtime = { module = "com.qualcomm.qti:qnn-runtime", version.ref = "qnnRuntime" }
 mlkit-text = { module = "com.google.mlkit:text-recognition", version.ref = "mlkitText" }
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
 junit = { module = "junit:junit", version = "4.13.2" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

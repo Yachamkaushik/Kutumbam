@@ -1,9 +1,5 @@
 package com.kutumbam.app.ui
 
-import android.Manifest
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,28 +15,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
-import java.io.File
 
 /** Developer screen for step 2: photo -> ML Kit OCR -> rule-based parser, with the raw text shown for debugging. */
 @Composable
 fun OcrLabScreen(vm: OcrLabViewModel = viewModel()) {
     val s by vm.state.collectAsState()
-    val context = LocalContext.current
-    var cameraUri by remember { mutableStateOf<Uri?>(null) }
-
-    val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(vm::process) }
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok -> if (ok) cameraUri?.let(vm::process) }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) launchCamera(context, { cameraUri = it }, camera::launch)
-    }
+    val capture = rememberCapture(vm::process)
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -48,9 +31,9 @@ fun OcrLabScreen(vm: OcrLabViewModel = viewModel()) {
     ) {
         Text("Scan lab", style = MaterialTheme.typography.headlineSmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { permission.launch(Manifest.permission.CAMERA) }, enabled = !s.busy) { Text("Take photo") }
+            Button(onClick = { capture.takePhoto() }, enabled = !s.busy) { Text("Take photo") }
             OutlinedButton(
-                onClick = { gallery.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                onClick = { capture.pickImage() },
                 enabled = !s.busy,
             ) { Text("Pick image") }
         }
@@ -86,12 +69,4 @@ fun OcrLabScreen(vm: OcrLabViewModel = viewModel()) {
             Text(s.rawText, style = MaterialTheme.typography.bodySmall)
         }
     }
-}
-
-private fun launchCamera(context: android.content.Context, remember: (Uri) -> Unit, launch: (Uri) -> Unit) {
-    val dir = File(context.cacheDir, "captures").apply { mkdirs() }
-    val file = File(dir, "capture_${System.currentTimeMillis()}.jpg")
-    val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
-    remember(uri)
-    launch(uri)
 }

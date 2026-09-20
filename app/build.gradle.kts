@@ -40,6 +40,7 @@ dependencies {
     implementation(libs.coroutines.android)
     implementation(libs.litertlm)
     implementation(libs.qnn.runtime)
+    implementation(libs.mlkit.text)
 
     testImplementation(libs.junit)
 }

@@ -4,9 +4,8 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.kutumbam.app.llm.LiteRtLmEngine
+import com.kutumbam.app.KutumbamApp
 import com.kutumbam.app.llm.LlmBackend
-import com.kutumbam.app.llm.ModelStore
 import com.kutumbam.app.llm.Prompts
 import com.kutumbam.app.llm.generate
 import kotlinx.coroutines.Dispatchers
@@ -29,15 +28,19 @@ data class LabState(
 )
 
 class LlmLabViewModel(app: Application) : AndroidViewModel(app) {
-    private val store = ModelStore(app)
-    private val engine = LiteRtLmEngine(app)
+    private val kApp = app as KutumbamApp
+    private val store = kApp.modelStore
+    private val engine = kApp.llm
 
     private val _state = MutableStateFlow(LabState())
     val state = _state.asStateFlow()
 
     val pushHint get() = store.pushDirHint()
 
-    init { refresh() }
+    init {
+        refresh()
+        engine.activeBackend?.let { b -> _state.update { it.copy(loaded = true, status = "Running on $b") } }
+    }
 
     fun refresh() {
         val models = store.list()
@@ -97,5 +100,5 @@ class LlmLabViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    override fun onCleared() = engine.close()
+    val loaded get() = engine.activeBackend != null
 }

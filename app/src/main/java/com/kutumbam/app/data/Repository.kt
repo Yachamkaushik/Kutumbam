@@ -40,6 +40,9 @@ class Repository(context: Context) {
     fun doseLogs(date: LocalDate) = dao.doseLogs(date.toString())
     fun latestFlagged(memberId: Long) = dao.latestFlagged(memberId)
     suspend fun allMembers() = dao.allMembers()
+    suspend fun medicinesNow(memberId: Long) = dao.medicinesNow(memberId)
+    suspend fun labsNow(memberId: Long) = dao.labsNow(memberId)
+    suspend fun documentsNow(memberId: Long) = dao.documentsNow(memberId)
     fun immunizations(memberId: Long) = dao.immunizations(memberId)
     suspend fun immunizationsNow(memberId: Long) = dao.immunizationsNow(memberId)
 

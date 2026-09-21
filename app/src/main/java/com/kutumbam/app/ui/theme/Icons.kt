@@ -32,5 +32,6 @@ object KIcons {
     val Check = stroke("check", "M20 6L9 17l-5-5")
     val Plus = stroke("plus", "M12 5v14", "M5 12h14")
     val Heart = stroke("heart", "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z")
+    val Send = stroke("send", "M22 2L11 13", "M22 2l-7 20-4-9-9-4 20-7z")
     val Close = stroke("close", "M18 6L6 18", "M6 6l12 12")
 }

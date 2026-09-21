@@ -34,7 +34,8 @@ photo / WhatsApp share  ->  ML Kit OCR  ->  rule-based parser  ->  confirm & cor
 | Medicine reminders (exact alarms, editable times, Taken button on the notification) | Built, verified on emulator |
 | Elder voice mode (large buttons, spoken in Telugu / Hindi / English) | Built, verified on emulator except audio quality |
 | Child profile and immunization timeline (India UIP schedule engine, vaccination card scan, mark-as-given, daily due/overdue reminder) | Built, verified on emulator |
-| Ask-the-Locker | Not started |
+| Ask-the-Locker (retrieval over stored records, refuses medical advice, grounding check on the on-device AI, sources shown, voice input and read-aloud) | Built, verified on emulator except voice and the AI answer path |
+| Share-in asks whose document it is | Built, verified on emulator |
 
 ## Requirements
 
@@ -78,7 +79,8 @@ app/src/main/java/com/kutumbam/app/
   data/    Room entities, DAO, repository
   reminder/ AlarmManager scheduling, notification receiver, boot re-arming
   speech/  on-device text-to-speech and the spoken medicine script
-  ui/      Home, Confirm, Elder mode, Report, Trend chart, Child immunization, capture helpers, developer screens, theme
+  locker/  retrieval, safety rules and answer checks for Ask-the-Locker (pure Kotlin)
+  ui/      Home, Confirm, Ask, Elder mode, Report, Trend chart, Child immunization, capture helpers, developer screens, theme
 app/src/test/   parser and range-check unit tests
 ```
 

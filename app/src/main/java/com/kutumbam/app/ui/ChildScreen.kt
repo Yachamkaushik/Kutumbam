@@ -104,6 +104,10 @@ fun ChildScreen(vm: AppViewModel) {
                     fontSize = 13.sp, lineHeight = 19.sp, color = if (overdue > 0) K.WarnText else K.Ink,
                 )
             }
+            Text(
+                "Ask the Locker about this →", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = K.Teal,
+                modifier = Modifier.padding(top = 10.dp).clickable { vm.openAsk("Which vaccines are due for ${c.member.name}?") },
+            )
         }
     }
 }

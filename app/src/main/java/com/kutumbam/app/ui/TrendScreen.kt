@@ -86,6 +86,11 @@ fun TrendScreen(vm: AppViewModel) {
             "The range shown is a small built-in standard reference, because the report printed none.",
             fontSize = 12.sp, color = K.Muted, lineHeight = 17.sp, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp),
         )
+        Box(
+            Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(K.Teal)
+                .clickable { vm.openAsk("What was ${t.person}'s latest ${t.testName}?") }.padding(14.dp),
+            contentAlignment = Alignment.Center,
+        ) { Text("Ask a question about this", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White) }
         Text(
             "This is a summary of the numbers on the reports, not a diagnosis. Please talk to a doctor about any concern.",
             fontSize = 12.sp, color = K.Muted, lineHeight = 17.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),

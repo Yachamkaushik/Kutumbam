@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kutumbam.app.ui.AppViewModel
+import com.kutumbam.app.ui.AskScreen
 import com.kutumbam.app.ui.ChildScreen
 import com.kutumbam.app.ui.ConfirmScreen
 import com.kutumbam.app.ui.DevScreen
@@ -56,8 +57,26 @@ class MainActivity : ComponentActivity() {
                 val screen by vm.screen.collectAsState()
                 val busy by vm.busy.collectAsState()
                 val message by vm.message.collectAsState()
+                val members by vm.home.collectAsState()
+                val pendingShare by vm.pendingShare.collectAsState()
 
                 BackHandler(enabled = screen != Screen.HOME) { vm.back() }
+
+                pendingShare?.let {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { vm.cancelShare() },
+                        title = { Text("Whose document is this?") },
+                        text = { Text("It will be filed under the person you choose.") },
+                        confirmButton = {
+                            Column {
+                                members.members.forEach { m ->
+                                    androidx.compose.material3.TextButton(onClick = { vm.chooseShareTarget(m.id) }) { Text(m.name) }
+                                }
+                            }
+                        },
+                        dismissButton = { androidx.compose.material3.TextButton(onClick = { vm.cancelShare() }) { Text("Cancel") } },
+                    )
+                }
 
                 Surface(Modifier.fillMaxSize(), color = K.Bg) {
                     Box(Modifier.fillMaxSize()) {
@@ -68,6 +87,7 @@ class MainActivity : ComponentActivity() {
                             Screen.REPORT -> ReportScreen(vm)
                             Screen.TREND -> TrendScreen(vm)
                             Screen.CHILD -> ChildScreen(vm)
+                            Screen.ASK -> AskScreen(vm)
                             Screen.DEV -> DevScreen { vm.show(Screen.HOME) }
                         }
                         message?.let { text ->
@@ -101,6 +121,6 @@ class MainActivity : ComponentActivity() {
         if (intent?.action != Intent.ACTION_SEND || intent.type?.startsWith("image/") != true) return
         val uri: Uri? = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
         else @Suppress("DEPRECATION") intent.getParcelableExtra(Intent.EXTRA_STREAM)
-        uri?.let(vm::processImage)
+        uri?.let(vm::onSharedImage)
     }
 }

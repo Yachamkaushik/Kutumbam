@@ -24,6 +24,10 @@ interface KutumbamDao {
     @Query("SELECT * FROM immunization WHERE memberId = :memberId") suspend fun immunizationsNow(memberId: Long): List<ImmunizationRecord>
     @Query("DELETE FROM immunization WHERE memberId = :memberId AND scheduleId = :scheduleId") suspend fun deleteImmunization(memberId: Long, scheduleId: String)
 
+    @Query("SELECT * FROM medicine WHERE memberId = :memberId AND confirmedByUser = 1") suspend fun medicinesNow(memberId: Long): List<MedicineEntity>
+    @Query("SELECT * FROM lab_value WHERE memberId = :memberId ORDER BY date, id") suspend fun labsNow(memberId: Long): List<LabValueEntity>
+    @Query("SELECT * FROM document WHERE memberId = :memberId") suspend fun documentsNow(memberId: Long): List<DocumentEntity>
+
     @Insert suspend fun insertDocument(d: DocumentEntity): Long
     @Insert suspend fun insertMedicines(m: List<MedicineEntity>)
     @Insert suspend fun insertLabs(l: List<LabValueEntity>)

@@ -7,6 +7,7 @@ import com.kutumbam.app.llm.LlmEngine
 import com.kutumbam.app.llm.ModelStore
 import com.kutumbam.app.ocr.TextOcr
 import com.kutumbam.app.speech.Speaker
+import com.kutumbam.app.speech.VoiceInput
 
 /** Process-wide singletons. The LLM engine is expensive to load, so every screen shares one. */
 class KutumbamApp : Application() {
@@ -15,4 +16,5 @@ class KutumbamApp : Application() {
     val ocr: TextOcr by lazy { TextOcr(this) }
     val repo: Repository by lazy { Repository(this) }
     val speaker: Speaker by lazy { Speaker(this) }
+    val voice: VoiceInput by lazy { VoiceInput(this) }
 }

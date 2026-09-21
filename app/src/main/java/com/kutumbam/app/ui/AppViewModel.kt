@@ -23,6 +23,14 @@ import com.kutumbam.app.parse.formatNumber
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import com.kutumbam.app.parse.DocumentParser
+import com.kutumbam.app.locker.AnswerRules
+import com.kutumbam.app.locker.LabRecord
+import com.kutumbam.app.locker.LockerData
+import com.kutumbam.app.locker.MedRecord
+import com.kutumbam.app.locker.Retrieval
+import com.kutumbam.app.locker.Source
+import com.kutumbam.app.locker.SourceKind
+import com.kutumbam.app.llm.LlmBackend
 import com.kutumbam.app.parse.ImmunizationEngine
 import com.kutumbam.app.parse.MilestoneState
 import com.kutumbam.app.parse.UipSchedule
@@ -57,7 +65,7 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-enum class Screen { HOME, CONFIRM, ELDER, REPORT, TREND, CHILD, DEV }
+enum class Screen { HOME, CONFIRM, ELDER, REPORT, TREND, CHILD, ASK, DEV }
 
 data class DoseRow(
     val medicineId: Long,
@@ -121,6 +129,25 @@ data class EditableMed(
 /** A vaccine dose read from a card. The date must be set before the dose can be saved. */
 data class EditableVaccine(val key: Int, val scheduleId: String, val label: String, val milestone: String, val date: LocalDate?)
 
+data class QaItem(
+    val id: Long,
+    val question: String,
+    val answer: String,
+    val sources: List<Source>,
+    val thinking: Boolean,
+    /** How this answer was produced, shown under it. */
+    val basis: String,
+)
+
+data class AskUi(
+    val memberName: String = "",
+    val items: List<QaItem> = emptyList(),
+    val suggestions: List<String> = emptyList(),
+    val listening: Boolean = false,
+    val partial: String = "",
+    val status: String? = null,
+)
+
 data class ChildUi(
     val member: FamilyMember,
     val dob: LocalDate,
@@ -167,6 +194,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val draft = _draft.asStateFlow()
 
     private val selectedId = MutableStateFlow<Long?>(null)
+
+    /** A photo shared in from another app, waiting for the user to say whose it is. */
+    private val _pendingShare = MutableStateFlow<Uri?>(null)
+    val pendingShare = _pendingShare.asStateFlow()
 
     val home: StateFlow<HomeUi> = combine(repo.members(), selectedId) { members, sel ->
         members to (members.firstOrNull { it.id == sel } ?: members.firstOrNull())
@@ -251,6 +282,130 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setVaccineDate(key: Int, date: LocalDate) = _draft.update { d -> d?.copy(vaccines = d.vaccines.map { if (it.key == key) it.copy(date = date) else it }) }
     fun removeVaccine(key: Int) = _draft.update { d -> d?.copy(vaccines = d.vaccines.filterNot { it.key == key }) }
 
+    // ---- Ask the Locker
+
+    private val _ask = MutableStateFlow(AskUi())
+    val ask = _ask.asStateFlow()
+    private var askMemberId: Long? = null
+    private var askReturn = Screen.HOME
+    private var nextQaId = 1L
+    private var autoLoadTried = false
+    val voiceAvailable get() = kApp.voice.isAvailable()
+
+    /** Opens the chat for the selected member. [initialQuestion] is asked straight away (from the trend and child screens). */
+    fun openAsk(initialQuestion: String? = null) {
+        val member = home.value.selected ?: run { _message.value = "Add a family member first."; return }
+        askReturn = _screen.value.takeIf { it in setOf(Screen.TREND, Screen.CHILD, Screen.REPORT) } ?: Screen.HOME
+        if (askMemberId != member.id) { askMemberId = member.id; _ask.value = AskUi(memberName = member.name) }
+        _screen.value = Screen.ASK
+        viewModelScope.launch {
+            val data = buildLockerData(member)
+            val tips = buildList {
+                if (data.medicines.isNotEmpty()) add("What medicines does ${member.name} take?")
+                data.labs.lastOrNull()?.let { add("What was ${member.name}'s latest ${it.testName}?") }
+                if (data.immunization != null) add("Which vaccines are due for ${member.name}?")
+                if (data.medicines.isNotEmpty()) add("What does ${member.name} take in the morning?")
+            }
+            _ask.update { it.copy(memberName = member.name, suggestions = tips) }
+        }
+        initialQuestion?.let { ask(it) }
+    }
+
+    fun ask(question: String) {
+        val q = question.trim()
+        val member = home.value.selected ?: return
+        if (q.isEmpty()) return
+        val id = nextQaId++
+        _ask.update { it.copy(items = it.items + QaItem(id, q, "", emptyList(), thinking = true, basis = ""), partial = "") }
+        viewModelScope.launch {
+            fun finish(answer: String, sources: List<Source>, basis: String) = _ask.update { a ->
+                a.copy(items = a.items.map { if (it.id == id) it.copy(answer = answer, sources = sources, thinking = false, basis = basis) else it })
+            }
+            val data = buildLockerData(member)
+            val retrieved = Retrieval.retrieve(q, data)
+            if (retrieved.advice) { finish(AnswerRules.refusal(member.name), emptyList(), "Not medical advice"); return@launch }
+            if (retrieved.facts.isEmpty()) { finish(retrieved.directAnswer, emptyList(), "Nothing matching in the stored records"); return@launch }
+
+            ensureModelLoaded()
+            val backend = kApp.llm.activeBackend
+            if (backend == null) { finish(retrieved.directAnswer, retrieved.sources, "From the stored records · load the AI model in AI setup for fuller answers"); return@launch }
+
+            val today = data.today.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH))
+            val language = AppLanguage.fromCode(member.preferredLanguage).voiceName
+            try {
+                val result = kApp.llm.generate(AnswerRules.systemPrompt(member.name, language, today), AnswerRules.userPrompt(retrieved, q)) { partial ->
+                    _ask.update { a -> a.copy(items = a.items.map { if (it.id == id) it.copy(answer = partial) else it }) }
+                }
+                val text = result.text.trim()
+                if (AnswerRules.isGrounded(text, retrieved.factsText, q, today)) finish(text, retrieved.sources, "On-device AI ($backend) from the stored records")
+                else finish(retrieved.directAnswer, retrieved.sources, "From the stored records (the AI's wording didn't match them, so it isn't shown)")
+            } catch (t: Throwable) {
+                finish(retrieved.directAnswer, retrieved.sources, "From the stored records")
+            }
+        }
+    }
+
+    /** Loads a model that is already on the phone the first time it is needed, so Ask works without visiting AI setup. */
+    private suspend fun ensureModelLoaded() {
+        if (kApp.llm.activeBackend != null || autoLoadTried) return
+        autoLoadTried = true
+        val models = kApp.modelStore.list()
+        val model = models.firstOrNull { it.name.contains("qualcomm", ignoreCase = true) } ?: models.firstOrNull() ?: return
+        _ask.update { it.copy(status = "Loading the on-device AI. The first time takes a while…") }
+        kApp.llm.load(model.absolutePath, listOf(LlmBackend.NPU, LlmBackend.GPU, LlmBackend.CPU))
+        _ask.update { it.copy(status = null) }
+    }
+
+    fun startListening() {
+        val member = home.value.selected ?: return
+        val lang = AppLanguage.fromCode(member.preferredLanguage)
+        kApp.speaker.stop()
+        _ask.update { it.copy(listening = true, partial = "") }
+        kApp.voice.start(
+            lang,
+            onPartial = { p -> _ask.update { it.copy(partial = p) } },
+            onResult = { text -> _ask.update { it.copy(listening = false, partial = "") }; ask(text) },
+            onError = { msg -> _ask.update { it.copy(listening = false, partial = "") }; _message.value = msg },
+        )
+    }
+
+    fun stopListening() { kApp.voice.stop(); _ask.update { it.copy(listening = false, partial = "") } }
+
+    fun speakAnswer(item: QaItem) {
+        val member = home.value.selected ?: return
+        val lang = AppLanguage.fromCode(member.preferredLanguage)
+        if (speaking.value) { kApp.speaker.stop(); return }
+        kApp.speaker.speak(item.answer, lang) { result ->
+            if (result == SpeakResult.VOICE_MISSING) _message.value = "The ${lang.voiceName} voice isn't installed on this phone."
+        }
+    }
+
+    private suspend fun buildLockerData(member: FamilyMember): LockerData {
+        val today = LocalDate.now()
+        val fmt = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)
+        val docs = repo.documentsNow(member.id).associateBy { it.id }
+        val meds = repo.medicinesNow(member.id).map { m ->
+            val stamp = docs[m.documentId]?.captureDate ?: m.startDate
+            MedRecord(
+                name = m.name, strength = m.strength, times = m.timesCsv.split(",").filter { it.isNotBlank() }.map { LocalTime.parse(it) },
+                sos = m.frequencyCode == FrequencyCode.SOS.name, meal = MealTiming.valueOf(m.mealTiming), durationDays = m.durationDays,
+                startDate = LocalDate.parse(m.startDate), source = Source(SourceKind.PRESCRIPTION, "Prescription · ${LocalDate.parse(stamp).format(fmt)}", m.documentId),
+            )
+        }
+        val labs = repo.labsNow(member.id).map { l ->
+            val date = LocalDate.parse(l.date)
+            LabRecord(
+                testName = l.testName, key = TestNames.key(l.testName), value = l.value, unit = l.unit, low = l.printedRangeLow, high = l.printedRangeHigh,
+                standardReference = l.rangeSource == "standard", date = date, source = Source(SourceKind.LAB_REPORT, "Lab report · ${date.format(fmt)}", l.documentId),
+            )
+        }
+        val plan = if (member.isChildWithDob()) {
+            val dob = LocalDate.parse(member.dateOfBirth)
+            ImmunizationEngine.plan(dob, repo.immunizationsNow(member.id).associate { it.scheduleId to LocalDate.parse(it.administeredDate) }, today)
+        } else null
+        return LockerData(member.name, today, meds, labs, plan)
+    }
+
     fun openReport(documentId: Long) { reportDoc.value = documentId; _screen.value = Screen.REPORT }
 
     fun openTrend(memberId: Long, key: String) {
@@ -267,6 +422,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             Screen.ELDER -> { kApp.speaker.stop(); _screen.value = Screen.HOME }
             Screen.TREND -> _screen.value = if (reportDoc.value != null) Screen.REPORT else Screen.HOME
             Screen.CHILD -> _screen.value = Screen.HOME
+            Screen.ASK -> { stopListening(); kApp.speaker.stop(); _screen.value = askReturn }
             else -> _screen.value = Screen.HOME
         }
     }
@@ -312,6 +468,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun select(id: Long) { selectedId.value = id }
+
+    /** Share-in entry point. With one family member the photo goes straight in; with several, we ask whose it is. */
+    fun onSharedImage(uri: Uri) {
+        viewModelScope.launch {
+            val members = repo.members().first()
+            when {
+                members.isEmpty() -> _message.value = "Add a family member first, then share the photo again."
+                members.size == 1 -> { selectedId.value = members[0].id; processImage(uri) }
+                else -> _pendingShare.value = uri
+            }
+        }
+    }
+
+    fun chooseShareTarget(memberId: Long) {
+        val uri = _pendingShare.value ?: return
+        _pendingShare.value = null
+        selectedId.value = memberId
+        processImage(uri)
+    }
+
+    fun cancelShare() { _pendingShare.value = null }
 
     fun setLanguage(lang: AppLanguage) {
         val member = home.value.selected ?: return

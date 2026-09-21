@@ -30,7 +30,7 @@ photo / WhatsApp share  ->  ML Kit OCR  ->  rule-based parser  ->  confirm & cor
 | Home and Confirm Details screens | Built |
 | Share-in from WhatsApp / Gallery | Built |
 | Range check against the printed range | Built (logic and Home alert) |
-| Reminders and alarms | Not started |
+| Medicine reminders (exact alarms, editable times, Taken button on the notification) | Built, verified on emulator |
 | Elder voice mode (large buttons, spoken in Telugu / Hindi / English) | Built, verified on emulator except audio quality |
 | Ask-the-Locker, trend chart, immunization schedule | Not started |
 
@@ -74,7 +74,9 @@ app/src/main/java/com/kutumbam/app/
   ocr/     ML Kit wrapper and table-row reconstruction
   parse/   prescription, lab report, frequency, meal, duration and range logic (pure Kotlin)
   data/    Room entities, DAO, repository
-  ui/      Home, Confirm, capture helpers, developer screens, theme
+  reminder/ AlarmManager scheduling, notification receiver, boot re-arming
+  speech/  on-device text-to-speech and the spoken medicine script
+  ui/      Home, Confirm, Elder mode, capture helpers, developer screens, theme
 app/src/test/   parser and range-check unit tests
 ```
 

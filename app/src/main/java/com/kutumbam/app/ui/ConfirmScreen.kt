@@ -1,5 +1,6 @@
 package com.kutumbam.app.ui
 
+import android.app.TimePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -41,6 +43,7 @@ import com.kutumbam.app.parse.MealTiming
 import com.kutumbam.app.parse.ParsedLabValue
 import com.kutumbam.app.ui.theme.K
 import com.kutumbam.app.ui.theme.KIcons
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -128,6 +131,19 @@ private fun MedEditor(m: EditableMed, vm: AppViewModel) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             MealTiming.entries.forEach { t ->
                 FilterChip(selected = m.meal == t, onClick = { vm.updateMed(m.key) { it.copy(meal = t) } }, label = { Text(mealLabel(t)) })
+            }
+        }
+        if (m.times.isNotEmpty()) {
+            Text("Reminder times (tap to change)", fontSize = 12.sp, color = K.Muted)
+            val context = LocalContext.current
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                m.times.forEachIndexed { i, t ->
+                    Box(
+                        Modifier.clip(RoundedCornerShape(10.dp)).background(K.TealTint)
+                            .clickable { TimePickerDialog(context, { _, h, min -> vm.setTime(m.key, i, LocalTime.of(h, min)) }, t.hour, t.minute, false).show() }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                    ) { Text(t.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = K.Teal) }
+                }
             }
         }
         OutlinedTextField(

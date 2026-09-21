@@ -22,6 +22,12 @@ interface KutumbamDao {
     @Query("SELECT * FROM medicine WHERE memberId = :memberId AND confirmedByUser = 1")
     fun medicines(memberId: Long): Flow<List<MedicineEntity>>
 
+    @Query("SELECT * FROM medicine WHERE confirmedByUser = 1") suspend fun allMedicines(): List<MedicineEntity>
+    @Query("SELECT * FROM medicine WHERE id = :id") suspend fun medicine(id: Long): MedicineEntity?
+    @Query("SELECT * FROM member WHERE id = :id") suspend fun member(id: Long): FamilyMember?
+    @Query("SELECT COUNT(*) FROM dose_log WHERE medicineId = :medicineId AND date = :date AND time = :time AND status = 'taken'")
+    suspend fun takenCount(medicineId: Long, date: String, time: String): Int
+
     @Query("SELECT * FROM dose_log WHERE date = :date") fun doseLogs(date: String): Flow<List<DoseLog>>
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun logDose(l: DoseLog)
     @Query("DELETE FROM dose_log WHERE medicineId = :medicineId AND date = :date AND time = :time")

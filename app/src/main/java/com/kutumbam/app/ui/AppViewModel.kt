@@ -10,6 +10,7 @@ import com.kutumbam.app.data.ConfirmedMedicine
 import com.kutumbam.app.data.FamilyMember
 import com.kutumbam.app.data.MedicineEntity
 import com.kutumbam.app.parse.DocumentParser
+import com.kutumbam.app.reminder.ReminderScheduler
 import com.kutumbam.app.parse.DocumentType
 import com.kutumbam.app.parse.FrequencyCode
 import com.kutumbam.app.parse.FrequencyParser
@@ -209,6 +210,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setFrequency(key: Int, code: FrequencyCode) =
         updateMed(key) { it.copy(frequency = code, times = FrequencyParser.defaultTimes(code)) }
 
+    fun setTime(key: Int, index: Int, time: LocalTime) =
+        updateMed(key) { m -> m.copy(times = m.times.toMutableList().also { it[index] = time }.sorted()) }
+
+    /** Re-arm every reminder from stored data (app start, after edits). */
+    fun rearmReminders() { viewModelScope.launch(Dispatchers.Default) { ReminderScheduler.scheduleAll(getApplication()) } }
+
     fun removeMed(key: Int) = _draft.update { d -> d?.copy(meds = d.meds.filterNot { it.key == key }) }
     fun removeLab(index: Int) = _draft.update { d -> d?.copy(labs = d.labs.filterIndexed { i, _ -> i != index }) }
 
@@ -230,6 +237,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _draft.value = null
             _screen.value = Screen.HOME
             _message.value = "Saved to ${d.memberName}'s locker."
+            ReminderScheduler.scheduleAll(getApplication())
         }
     }
 

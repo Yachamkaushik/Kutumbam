@@ -35,6 +35,11 @@ class Repository(context: Context) {
     fun doseLogs(date: LocalDate) = dao.doseLogs(date.toString())
     fun latestFlagged(memberId: Long) = dao.latestFlagged(memberId)
 
+    suspend fun allMedicines() = dao.allMedicines()
+    suspend fun medicine(id: Long) = dao.medicine(id)
+    suspend fun member(id: Long) = dao.member(id)
+    suspend fun isDoseTaken(medicineId: Long, date: LocalDate, time: String) = dao.takenCount(medicineId, date.toString(), time) > 0
+
     suspend fun addMember(m: FamilyMember) = dao.insertMember(m)
     suspend fun setLanguage(id: Long, code: String) = dao.setLanguage(id, code)
 
@@ -55,13 +60,14 @@ class Repository(context: Context) {
     ) {
         val today = LocalDate.now()
         val docId = dao.insertDocument(DocumentEntity(memberId = memberId, type = type, sourceImagePath = imagePath, captureDate = today.toString(), ocrRawText = rawText))
-        dao.insertMedicines(medicines.map {
+        val saved = medicines.map {
             MedicineEntity(
                 documentId = docId, memberId = memberId, name = it.name, strength = it.strength, form = it.form,
                 frequencyCode = it.frequencyCode, timesCsv = it.times.joinToString(",") { t -> t.toString() },
                 mealTiming = it.meal, durationDays = it.durationDays, startDate = today.toString(), confirmedByUser = true,
             )
-        })
+        }
+        dao.insertMedicines(saved)
         dao.insertLabs(labs.map {
             val status = RangeCheck.status(it.value, it.low, it.high)
             LabValueEntity(

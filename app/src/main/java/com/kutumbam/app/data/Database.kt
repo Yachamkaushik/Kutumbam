@@ -30,6 +30,11 @@ interface KutumbamDao {
 
     @Query("UPDATE medicine SET stockCount = :count, stockAsOf = :asOf WHERE id = :id") suspend fun setStock(id: Long, count: Int, asOf: String)
 
+    @Insert suspend fun insertMeasurement(m: Measurement)
+    @Query("DELETE FROM measurement WHERE id = :id") suspend fun deleteMeasurement(id: Long)
+    @Query("SELECT * FROM measurement WHERE memberId = :memberId ORDER BY date, id") fun measurements(memberId: Long): Flow<List<Measurement>>
+    @Query("SELECT * FROM measurement WHERE memberId = :memberId ORDER BY date, id") suspend fun measurementsNow(memberId: Long): List<Measurement>
+
     @Insert suspend fun insertDocument(d: DocumentEntity): Long
     @Insert suspend fun insertMedicines(m: List<MedicineEntity>)
     @Insert suspend fun insertLabs(l: List<LabValueEntity>)
@@ -58,8 +63,8 @@ interface KutumbamDao {
 }
 
 @Database(
-    entities = [FamilyMember::class, DocumentEntity::class, MedicineEntity::class, LabValueEntity::class, DoseLog::class, ImmunizationRecord::class],
-    version = 5,
+    entities = [FamilyMember::class, DocumentEntity::class, MedicineEntity::class, LabValueEntity::class, DoseLog::class, ImmunizationRecord::class, Measurement::class],
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDb : RoomDatabase() {

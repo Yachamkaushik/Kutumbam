@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.kutumbam.app.ui.AppViewModel
 import com.kutumbam.app.ui.AskScreen
 import com.kutumbam.app.ui.ChildScreen
+import com.kutumbam.app.ui.VisitScreen
 import com.kutumbam.app.ui.ConfirmScreen
 import com.kutumbam.app.ui.DevScreen
 import com.kutumbam.app.ui.ElderScreen
@@ -88,6 +89,7 @@ class MainActivity : ComponentActivity() {
                             Screen.TREND -> TrendScreen(vm)
                             Screen.CHILD -> ChildScreen(vm)
                             Screen.ASK -> AskScreen(vm)
+                            Screen.VISIT -> VisitScreen(vm)
                             Screen.DEV -> DevScreen { vm.show(Screen.HOME) }
                         }
                         message?.let { text ->

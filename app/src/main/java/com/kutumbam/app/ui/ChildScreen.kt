@@ -72,6 +72,7 @@ fun ChildScreen(vm: AppViewModel) {
         )
 
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            GrowthCard(vm)
             c.milestones.forEach { ms ->
                 val key = ms.milestone.name
                 MilestoneCard(ms, c.today, expanded = key in expanded, onToggle = { expanded = if (key in expanded) expanded - key else expanded + key })
@@ -153,4 +154,61 @@ private fun statusStyle(s: VaccineStatus): Triple<Color, Color, String> = when (
     VaccineStatus.UPCOMING -> Triple(K.TealTint, K.Teal, "Upcoming")
     VaccineStatus.DUE -> Triple(Color(0xFFDDEFEC), K.Teal, "Due now")
     VaccineStatus.OVERDUE -> Triple(K.WarnBg, K.WarnIcon, "Overdue")
+}
+
+@Composable
+private fun GrowthCard(vm: AppViewModel) {
+    val growth by vm.growth.collectAsState()
+    var adding by remember { mutableStateOf(false) }
+    Card {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Growth", Modifier.weight(1f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = K.Ink)
+                androidx.compose.material3.TextButton(onClick = { adding = true }) { Text("Add measurement") }
+            }
+            if (growth.isEmpty()) Text("No weight or height recorded yet. Add them to get growth questions for the doctor's visit.", fontSize = 12.sp, lineHeight = 18.sp, color = K.Muted)
+            growth.takeLast(4).reversed().forEach { g ->
+                val parts = listOfNotNull(
+                    g.weightKg?.let { "${com.kutumbam.app.parse.formatNumber(it)} kg" }, g.heightCm?.let { "${com.kutumbam.app.parse.formatNumber(it)} cm tall" },
+                    g.headCm?.let { "head ${com.kutumbam.app.parse.formatNumber(it)} cm" },
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(LocalDate.parse(g.date).format(DAY) + " · " + parts.joinToString(", "), Modifier.weight(1f), fontSize = 13.sp, color = K.Ink)
+                    Box(Modifier.size(36.dp).clip(CircleShape).clickable { vm.deleteMeasurement(g.id) }, contentAlignment = Alignment.Center) {
+                        Icon(KIcons.Close, "Delete", Modifier.size(16.dp), tint = K.Muted)
+                    }
+                }
+            }
+            androidx.compose.material3.OutlinedButton(onClick = { vm.openVisit() }, modifier = Modifier.fillMaxWidth()) { Text("Pediatrician visit prep") }
+        }
+    }
+    if (adding) MeasurementDialog(onDismiss = { adding = false }, onSave = { d, w, h, hc -> adding = false; vm.addMeasurement(d, w, h, hc) })
+}
+
+@Composable
+private fun MeasurementDialog(onDismiss: () -> Unit, onSave: (LocalDate, Double?, Double?, Double?) -> Unit) {
+    val context = LocalContext.current
+    var date by remember { mutableStateOf(LocalDate.now()) }
+    var weight by remember { mutableStateOf("") }
+    var height by remember { mutableStateOf("") }
+    var head by remember { mutableStateOf("") }
+    val decimal = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)
+    fun clean(v: String) = v.filter { it.isDigit() || it == '.' }.take(6)
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add measurement") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.OutlinedButton(onClick = {
+                    DatePickerDialog(context, { _, y, m, d -> date = LocalDate.of(y, m + 1, d) }, date.year, date.monthValue - 1, date.dayOfMonth)
+                        .apply { datePicker.maxDate = System.currentTimeMillis() }.show()
+                }) { Text(date.format(DAY)) }
+                androidx.compose.material3.OutlinedTextField(weight, { weight = clean(it) }, label = { Text("Weight (kg)") }, singleLine = true, keyboardOptions = decimal)
+                androidx.compose.material3.OutlinedTextField(height, { height = clean(it) }, label = { Text("Height or length (cm)") }, singleLine = true, keyboardOptions = decimal)
+                androidx.compose.material3.OutlinedTextField(head, { head = clean(it) }, label = { Text("Head size (cm), optional") }, singleLine = true, keyboardOptions = decimal)
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { onSave(date, weight.toDoubleOrNull(), height.toDoubleOrNull(), head.toDoubleOrNull()) }) { Text("Save") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }

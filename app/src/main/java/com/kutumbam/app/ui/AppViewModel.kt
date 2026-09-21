@@ -10,7 +10,12 @@ import com.kutumbam.app.data.ConfirmedMedicine
 import com.kutumbam.app.data.FamilyMember
 import com.kutumbam.app.data.MedicineEntity
 import com.kutumbam.app.data.ReportSummary
+import com.kutumbam.app.data.Measurement
 import com.kutumbam.app.data.refill
+import com.kutumbam.app.visit.GrowthPoint
+import com.kutumbam.app.visit.PrepInput
+import com.kutumbam.app.visit.PrepSheet
+import com.kutumbam.app.visit.VisitPrep
 import com.kutumbam.app.locker.SupplyInfo
 import com.kutumbam.app.parse.RefillText
 import com.kutumbam.app.data.doseSlots
@@ -77,7 +82,7 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-enum class Screen { HOME, CONFIRM, ELDER, REPORT, TREND, CHILD, ASK, DEV }
+enum class Screen { HOME, CONFIRM, ELDER, REPORT, TREND, CHILD, ASK, DEV, VISIT }
 
 data class DoseRow(
     val medicineId: Long,
@@ -320,6 +325,47 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openChild() { _screen.value = Screen.CHILD }
 
+    /** Growth entries for the selected child, oldest first. */
+    val growth: StateFlow<List<Measurement>> = home.map { it.selected }.distinctUntilChanged().flatMapLatest { member ->
+        if (member == null) flowOf(emptyList()) else repo.measurements(member.id)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun addMeasurement(date: LocalDate, weightKg: Double?, heightCm: Double?, headCm: Double?) {
+        val member = home.value.selected ?: return
+        when {
+            weightKg == null && heightCm == null && headCm == null -> _message.value = "Enter at least one measurement."
+            weightKg != null && weightKg !in 0.5..150.0 -> _message.value = "That weight doesn't look right. Enter it in kg."
+            heightCm != null && heightCm !in 20.0..220.0 -> _message.value = "That height doesn't look right. Enter it in cm."
+            headCm != null && headCm !in 20.0..70.0 -> _message.value = "That head size doesn't look right. Enter it in cm."
+            else -> viewModelScope.launch { repo.addMeasurement(member.id, date, weightKg, heightCm, headCm) }
+        }
+    }
+
+    fun deleteMeasurement(id: Long) { viewModelScope.launch { repo.deleteMeasurement(id) } }
+
+    private val _visit = MutableStateFlow<PrepSheet?>(null)
+    val visit = _visit.asStateFlow()
+    private var visitReturn = Screen.HOME
+
+    /** Builds the question sheet for the selected person from what is saved. Rules only, so it works with no model loaded. */
+    fun openVisit() {
+        val member = home.value.selected ?: run { _message.value = "Add a family member first."; return }
+        visitReturn = _screen.value.takeIf { it == Screen.CHILD } ?: Screen.HOME
+        _visit.value = null
+        _screen.value = Screen.VISIT
+        viewModelScope.launch {
+            val data = buildLockerData(member)
+            val isChild = member.isChildWithDob()
+            _visit.value = VisitPrep.build(
+                PrepInput(
+                    person = member.name, isChild = isChild, dob = member.dateOfBirth?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
+                    today = LocalDate.now(), medicines = data.medicines, labs = data.labs, immunization = if (isChild) data.immunization else null,
+                    growth = repo.measurementsNow(member.id).map { GrowthPoint(LocalDate.parse(it.date), it.weightKg, it.heightCm, it.headCm) },
+                ),
+            )
+        }
+    }
+
     fun markVaccine(scheduleId: String, date: LocalDate) {
         val member = home.value.selected ?: return
         viewModelScope.launch { repo.markVaccine(member.id, scheduleId, date) }
@@ -474,6 +520,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             Screen.ELDER -> { kApp.speaker.stop(); _screen.value = Screen.HOME }
             Screen.TREND -> _screen.value = if (reportDoc.value != null) Screen.REPORT else Screen.HOME
             Screen.CHILD -> _screen.value = Screen.HOME
+            Screen.VISIT -> _screen.value = visitReturn
             Screen.ASK -> { stopListening(); kApp.speaker.stop(); _screen.value = askReturn }
             else -> _screen.value = Screen.HOME
         }

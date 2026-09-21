@@ -129,6 +129,21 @@ fun HomeScreen(vm: AppViewModel) {
             }
         }
 
+        if (member != null) {
+            Card(Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp).clickable { vm.openVisit() }) {
+                Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                    Icon(KIcons.Pencil, null, Modifier.padding(top = 2.dp).size(18.dp), tint = K.Teal)
+                    Column {
+                        Text(if (child != null) "Pediatrician visit prep" else "Doctor visit prep", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = K.Ink)
+                        Text(
+                            "A short list of questions for ${member.name}'s next visit, from saved reports, medicines${if (child != null) ", growth and vaccines" else ""}.",
+                            fontSize = 12.sp, lineHeight = 18.sp, color = K.Muted, modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                }
+            }
+        }
+
         if (ui.reports.isNotEmpty()) {
             Text(
                 "LAB REPORTS", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp, color = K.Muted,

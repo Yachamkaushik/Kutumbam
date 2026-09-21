@@ -39,7 +39,7 @@ data class ConfirmedVaccine(val scheduleId: String, val date: LocalDate)
 class Repository(context: Context) {
     private val dao = Room.databaseBuilder(context, AppDb::class.java, "kutumbam.db")
         // Pre-release: the schema is still moving, so a version bump rebuilds the local database.
-        .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
+        .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
         .fallbackToDestructiveMigration(true).build().dao()
 
     fun members(): Flow<List<FamilyMember>> = dao.members()
@@ -50,6 +50,12 @@ class Repository(context: Context) {
     suspend fun medicinesNow(memberId: Long) = dao.medicinesNow(memberId)
     suspend fun labsNow(memberId: Long) = dao.labsNow(memberId)
     suspend fun documentsNow(memberId: Long) = dao.documentsNow(memberId)
+    fun measurements(memberId: Long) = dao.measurements(memberId)
+    suspend fun measurementsNow(memberId: Long) = dao.measurementsNow(memberId)
+    suspend fun addMeasurement(memberId: Long, date: LocalDate, weightKg: Double?, heightCm: Double?, headCm: Double?) =
+        dao.insertMeasurement(Measurement(memberId = memberId, date = date.toString(), weightKg = weightKg, heightCm = heightCm, headCm = headCm))
+    suspend fun deleteMeasurement(id: Long) = dao.deleteMeasurement(id)
+
     fun immunizations(memberId: Long) = dao.immunizations(memberId)
     suspend fun immunizationsNow(memberId: Long) = dao.immunizationsNow(memberId)
 
@@ -119,6 +125,12 @@ class Repository(context: Context) {
     }
 
     private companion object {
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `measurement` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `memberId` INTEGER NOT NULL, `date` TEXT NOT NULL, `weightKg` REAL, `heightCm` REAL, `headCm` REAL)")
+            }
+        }
+
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE medicine ADD COLUMN unitsCsv TEXT")

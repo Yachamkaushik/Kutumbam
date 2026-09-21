@@ -38,6 +38,8 @@ photo / WhatsApp share  ->  ML Kit OCR  ->  rule-based parser  ->  confirm & cor
 | Refill predictor (walks the schedule from the moment the tablets were counted, using each dose's own tablet count; daily 9:30 reminder from 3 days ahead; recount after a refill; answers "when will it run out?" in Ask) | Built, verified on emulator |
 | Duplicate-medicine warning (bundled brand to ingredient list; on the Confirm screen and on Home; never says which to stop) | Built, verified on emulator |
 | Tablets per dose (1-0-2, ½-0-½ read from the prescription, editable, shown on reminders, Home and in the spoken script) | Built, verified on emulator except audio |
+| Doctor visit prep sheet (questions from recently flagged lab values, medicine changes between the last two prescriptions, ended courses, overlaps and low supply; shareable as text) | Built, verified on emulator |
+| Pediatrician visit prep sheet (same, plus growth entries with trends and immunization due/overdue) and a Growth card on the child screen | Built, verified on emulator |
 | Share-in asks whose document it is | Built, verified on emulator |
 
 ## Requirements

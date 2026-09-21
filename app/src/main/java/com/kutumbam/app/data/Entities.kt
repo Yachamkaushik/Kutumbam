@@ -82,3 +82,14 @@ data class ImmunizationRecord(
     val administeredDate: String,
     val sourceDocumentId: Long? = null,
 )
+
+/** One weighing/measuring of a child. Any of the three values may be missing. */
+@Entity(tableName = "measurement")
+data class Measurement(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val memberId: Long,
+    val date: String,
+    val weightKg: Double?,
+    val heightCm: Double?,
+    val headCm: Double?,
+)

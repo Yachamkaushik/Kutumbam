@@ -33,7 +33,8 @@ photo / WhatsApp share  ->  ML Kit OCR  ->  rule-based parser  ->  confirm & cor
 | Trend chart from stored values, with plain-language summary (on-device AI rewrites it when a model is loaded) | Built, chart verified on emulator; AI summary needs a phone with the model |
 | Medicine reminders (exact alarms, editable times, Taken button on the notification) | Built, verified on emulator |
 | Elder voice mode (large buttons, spoken in Telugu / Hindi / English) | Built, verified on emulator except audio quality |
-| Ask-the-Locker, immunization schedule, child profile | Not started |
+| Child profile and immunization timeline (India UIP schedule engine, vaccination card scan, mark-as-given, daily due/overdue reminder) | Built, verified on emulator |
+| Ask-the-Locker | Not started |
 
 ## Requirements
 
@@ -73,11 +74,11 @@ In **AI setup -> AI model**, choose the file, leave the backend on Auto and tap 
 app/src/main/java/com/kutumbam/app/
   llm/     LlmEngine interface, LiteRT-LM implementation, model storage, prompts
   ocr/     ML Kit wrapper and table-row reconstruction
-  parse/   prescription, lab report, frequency, meal, duration and range logic (pure Kotlin)
+  parse/   prescription, lab report, vaccination card, immunization schedule, range logic (pure Kotlin)
   data/    Room entities, DAO, repository
   reminder/ AlarmManager scheduling, notification receiver, boot re-arming
   speech/  on-device text-to-speech and the spoken medicine script
-  ui/      Home, Confirm, Elder mode, Report, Trend chart, capture helpers, developer screens, theme
+  ui/      Home, Confirm, Elder mode, Report, Trend chart, Child immunization, capture helpers, developer screens, theme
 app/src/test/   parser and range-check unit tests
 ```
 

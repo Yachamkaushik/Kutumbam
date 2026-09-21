@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kutumbam.app.ui.AppViewModel
+import com.kutumbam.app.ui.ChildScreen
 import com.kutumbam.app.ui.ConfirmScreen
 import com.kutumbam.app.ui.DevScreen
 import com.kutumbam.app.ui.ElderScreen
@@ -66,6 +67,7 @@ class MainActivity : ComponentActivity() {
                             Screen.ELDER -> ElderScreen(vm)
                             Screen.REPORT -> ReportScreen(vm)
                             Screen.TREND -> TrendScreen(vm)
+                            Screen.CHILD -> ChildScreen(vm)
                             Screen.DEV -> DevScreen { vm.show(Screen.HOME) }
                         }
                         message?.let { text ->

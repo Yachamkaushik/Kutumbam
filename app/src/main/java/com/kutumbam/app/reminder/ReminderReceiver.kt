@@ -16,7 +16,9 @@ import com.kutumbam.app.KutumbamApp
 import com.kutumbam.app.MainActivity
 import com.kutumbam.app.R
 import com.kutumbam.app.data.MedicineEntity
+import com.kutumbam.app.parse.ImmunizationEngine
 import com.kutumbam.app.parse.MealTiming
+import com.kutumbam.app.parse.VaccineDigest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -34,6 +36,7 @@ class ReminderReceiver : BroadcastReceiver() {
                 when (intent.action) {
                     ReminderScheduler.ACTION_FIRE -> fire(context, intent)
                     ReminderScheduler.ACTION_TAKEN -> taken(context, intent)
+                    ReminderScheduler.ACTION_VACCINE -> vaccineDigest(context)
                     ReminderScheduler.ACTION_TEST -> notify(context, ReminderScheduler.TEST_CODE, "Kutumbam test reminder", "If you can read this, medicine reminders will reach you.", null)
                 }
             } finally {
@@ -55,6 +58,19 @@ class ReminderReceiver : BroadcastReceiver() {
         val code = ReminderScheduler.requestCode(med.id, time)
         notify(context, code, "Time for ${member?.name ?: "your"}${if (member != null) "'s" else ""} medicine", describe(med, time), Intent(context, ReminderReceiver::class.java)
             .setAction(ReminderScheduler.ACTION_TAKEN).putExtra(ReminderScheduler.EXTRA_MEDICINE, med.id).putExtra(ReminderScheduler.EXTRA_TIME, time.toString()))
+    }
+
+    private suspend fun vaccineDigest(context: Context) {
+        ReminderScheduler.armVaccineDigest(context, LocalDateTime.now().plusMinutes(1))
+        val repo = (context.applicationContext as KutumbamApp).repo
+        val today = LocalDate.now()
+        repo.allMembers().forEach { member ->
+            val dob = member.dateOfBirth?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return@forEach
+            if (dob.plusYears(17).isBefore(today)) return@forEach
+            val given = repo.immunizationsNow(member.id).associate { it.scheduleId to LocalDate.parse(it.administeredDate) }
+            val text = VaccineDigest.build(ImmunizationEngine.plan(dob, given, today), today) ?: return@forEach
+            notify(context, 100_000 + member.id.toInt(), "${member.name}'s vaccinations", text, null)
+        }
     }
 
     private suspend fun taken(context: Context, intent: Intent) {

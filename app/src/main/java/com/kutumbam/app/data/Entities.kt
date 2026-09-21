@@ -67,3 +67,13 @@ data class DoseLog(
     val status: String,
     val loggedAt: Long,
 )
+
+/** One dose that has actually been given. Whether a dose is due, upcoming or overdue is computed from the date of birth. */
+@Entity(tableName = "immunization", indices = [Index(value = ["memberId", "scheduleId"], unique = true)])
+data class ImmunizationRecord(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val memberId: Long,
+    val scheduleId: String,
+    val administeredDate: String,
+    val sourceDocumentId: Long? = null,
+)

@@ -17,6 +17,13 @@ interface KutumbamDao {
 
     @Query("UPDATE member SET preferredLanguage = :lang WHERE id = :id") suspend fun setLanguage(id: Long, lang: String)
 
+    @Query("SELECT * FROM member ORDER BY id") suspend fun allMembers(): List<FamilyMember>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertImmunizations(r: List<ImmunizationRecord>)
+    @Query("SELECT * FROM immunization WHERE memberId = :memberId") fun immunizations(memberId: Long): Flow<List<ImmunizationRecord>>
+    @Query("SELECT * FROM immunization WHERE memberId = :memberId") suspend fun immunizationsNow(memberId: Long): List<ImmunizationRecord>
+    @Query("DELETE FROM immunization WHERE memberId = :memberId AND scheduleId = :scheduleId") suspend fun deleteImmunization(memberId: Long, scheduleId: String)
+
     @Insert suspend fun insertDocument(d: DocumentEntity): Long
     @Insert suspend fun insertMedicines(m: List<MedicineEntity>)
     @Insert suspend fun insertLabs(l: List<LabValueEntity>)
@@ -45,8 +52,8 @@ interface KutumbamDao {
 }
 
 @Database(
-    entities = [FamilyMember::class, DocumentEntity::class, MedicineEntity::class, LabValueEntity::class, DoseLog::class],
-    version = 2,
+    entities = [FamilyMember::class, DocumentEntity::class, MedicineEntity::class, LabValueEntity::class, DoseLog::class, ImmunizationRecord::class],
+    version = 3,
     exportSchema = false,
 )
 abstract class AppDb : RoomDatabase() {

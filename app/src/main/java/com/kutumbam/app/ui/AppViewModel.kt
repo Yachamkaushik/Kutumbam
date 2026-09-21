@@ -21,7 +21,13 @@ import com.kutumbam.app.parse.TrendSummary
 import com.kutumbam.app.parse.describeRange
 import com.kutumbam.app.parse.formatNumber
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import com.kutumbam.app.parse.DocumentParser
+import com.kutumbam.app.parse.ImmunizationEngine
+import com.kutumbam.app.parse.MilestoneState
+import com.kutumbam.app.parse.UipSchedule
+import com.kutumbam.app.parse.VaccineStatus
+import com.kutumbam.app.data.ConfirmedVaccine
 import com.kutumbam.app.reminder.ReminderScheduler
 import com.kutumbam.app.parse.DocumentType
 import com.kutumbam.app.parse.FrequencyCode
@@ -51,7 +57,7 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-enum class Screen { HOME, CONFIRM, ELDER, REPORT, TREND, DEV }
+enum class Screen { HOME, CONFIRM, ELDER, REPORT, TREND, CHILD, DEV }
 
 data class DoseRow(
     val medicineId: Long,
@@ -112,6 +118,25 @@ data class EditableMed(
     val editing: Boolean = false,
 )
 
+/** A vaccine dose read from a card. The date must be set before the dose can be saved. */
+data class EditableVaccine(val key: Int, val scheduleId: String, val label: String, val milestone: String, val date: LocalDate?)
+
+data class ChildUi(
+    val member: FamilyMember,
+    val dob: LocalDate,
+    val ageText: String,
+    val today: LocalDate,
+    val milestones: List<MilestoneState>,
+) {
+    val overdueDoses get() = milestones.sumOf { m -> m.vaccines.count { it.status == VaccineStatus.OVERDUE } }
+    val next: MilestoneState? get() = milestones.firstOrNull { it.status != VaccineStatus.DONE }
+}
+
+fun FamilyMember.isChildWithDob(today: LocalDate = LocalDate.now()): Boolean {
+    val born = dateOfBirth?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return false
+    return relation == "Child" || born.plusYears(18).isAfter(today)
+}
+
 data class Draft(
     val memberId: Long,
     val memberName: String,
@@ -121,6 +146,7 @@ data class Draft(
     val date: LocalDate?,
     val meds: List<EditableMed>,
     val labs: List<ParsedLabValue>,
+    val vaccines: List<EditableVaccine> = emptyList(),
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -199,6 +225,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _aiBusy = MutableStateFlow(false)
     val aiBusy = _aiBusy.asStateFlow()
 
+    /** Live immunization plan for the selected member, when they are a child with a date of birth. */
+    val child: StateFlow<ChildUi?> = home.map { it.selected }.distinctUntilChanged().flatMapLatest { member ->
+        if (member == null || !member.isChildWithDob()) flowOf(null)
+        else repo.immunizations(member.id).map { records ->
+            val dob = LocalDate.parse(member.dateOfBirth)
+            val today = LocalDate.now()
+            ChildUi(member, dob, ImmunizationEngine.ageText(dob, today), today,
+                ImmunizationEngine.plan(dob, records.associate { it.scheduleId to LocalDate.parse(it.administeredDate) }, today))
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun openChild() { _screen.value = Screen.CHILD }
+
+    fun markVaccine(scheduleId: String, date: LocalDate) {
+        val member = home.value.selected ?: return
+        viewModelScope.launch { repo.markVaccine(member.id, scheduleId, date) }
+    }
+
+    fun unmarkVaccine(scheduleId: String) {
+        val member = home.value.selected ?: return
+        viewModelScope.launch { repo.unmarkVaccine(member.id, scheduleId) }
+    }
+
+    fun setVaccineDate(key: Int, date: LocalDate) = _draft.update { d -> d?.copy(vaccines = d.vaccines.map { if (it.key == key) it.copy(date = date) else it }) }
+    fun removeVaccine(key: Int) = _draft.update { d -> d?.copy(vaccines = d.vaccines.filterNot { it.key == key }) }
+
     fun openReport(documentId: Long) { reportDoc.value = documentId; _screen.value = Screen.REPORT }
 
     fun openTrend(memberId: Long, key: String) {
@@ -214,6 +266,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             Screen.CONFIRM -> discard()
             Screen.ELDER -> { kApp.speaker.stop(); _screen.value = Screen.HOME }
             Screen.TREND -> _screen.value = if (reportDoc.value != null) Screen.REPORT else Screen.HOME
+            Screen.CHILD -> _screen.value = Screen.HOME
             else -> _screen.value = Screen.HOME
         }
     }
@@ -309,8 +362,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val file = withContext(Dispatchers.IO) { copyIntoStorage(uri) }
                 val ocr = kApp.ocr.recognize(Uri.fromFile(file))
                 val doc = DocumentParser.parse(ocr.text)
-                if (doc.medicines.isEmpty() && doc.labValues.isEmpty()) {
-                    _message.value = "Couldn't find any medicines or lab values. Try a clearer, flatter photo."
+                if (doc.medicines.isEmpty() && doc.labValues.isEmpty() && doc.vaccinations.isEmpty()) {
+                    _message.value = "Couldn't find any medicines, lab values or vaccines. Try a clearer, flatter photo."
                 } else {
                     _draft.value = Draft(
                         memberId = member.id, memberName = member.name, imagePath = file.absolutePath, rawText = ocr.text,
@@ -324,6 +377,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             )
                         },
                         labs = doc.labValues,
+                        vaccines = doc.vaccinations.mapIndexed { i, v ->
+                            EditableVaccine(i, v.scheduleId, v.label, UipSchedule.byId(v.scheduleId)?.milestone?.ageLabel.orEmpty(), v.date)
+                        },
                     )
                     _screen.value = Screen.CONFIRM
                 }
@@ -365,10 +421,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 },
                 labs = d.labs.map { ConfirmedLab(it.testName, it.value, it.unit, it.rangeLow, it.rangeHigh, it.rangeText) },
+                vaccinations = d.vaccines.mapNotNull { v -> v.date?.let { ConfirmedVaccine(v.scheduleId, it) } },
             )
             _draft.value = null
             _message.value = "Saved to ${d.memberName}'s locker."
-            if (d.labs.isNotEmpty() && d.meds.isEmpty()) openReport(docId) else _screen.value = Screen.HOME
+            when {
+                d.vaccines.isNotEmpty() && d.meds.isEmpty() && d.labs.isEmpty() -> _screen.value = Screen.CHILD
+                d.labs.isNotEmpty() && d.meds.isEmpty() -> openReport(docId)
+                else -> _screen.value = Screen.HOME
+            }
             ReminderScheduler.scheduleAll(getApplication())
         }
     }

@@ -69,7 +69,8 @@ fun ConfirmScreen(vm: AppViewModel) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             d.meds.forEach { m -> MedCard(m, vm) }
             d.labs.forEachIndexed { i, lab -> LabCard(lab) { vm.removeLab(i) } }
-            if (d.meds.isEmpty() && d.labs.isEmpty()) Text("Everything was removed. Discard, or go back and rescan.", fontSize = 13.sp, color = K.Muted)
+            d.vaccines.forEach { v -> VaccineCard(v, vm) }
+            if (d.meds.isEmpty() && d.labs.isEmpty() && d.vaccines.isEmpty()) Text("Everything was removed. Discard, or go back and rescan.", fontSize = 13.sp, color = K.Muted)
             if (d.type == DocumentType.LAB_REPORT || d.labs.isNotEmpty()) {
                 Text(
                     "Values are compared only with the range printed on your report. This is not a diagnosis; talk to your doctor about anything outside it.",
@@ -83,7 +84,7 @@ fun ConfirmScreen(vm: AppViewModel) {
                 Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).border(1.dp, K.Teal, RoundedCornerShape(12.dp)).clickable { vm.discard() }.padding(14.dp),
                 contentAlignment = Alignment.Center,
             ) { Text("Discard", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = K.Teal) }
-            val canSave = d.meds.isNotEmpty() || d.labs.isNotEmpty()
+            val canSave = (d.meds.isNotEmpty() || d.labs.isNotEmpty() || d.vaccines.isNotEmpty()) && d.vaccines.all { it.date != null }
             Box(
                 Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (canSave) K.Teal else K.Ring).clickable(enabled = canSave) { vm.save() }.padding(14.dp),
                 contentAlignment = Alignment.Center,
@@ -171,6 +172,29 @@ private fun LabCard(v: ParsedLabValue, onRemove: () -> Unit) {
                 "Printed range",
                 v.rangeText ?: if (TestNames.fallback(v.testName, v.unit) != null) "Not printed; standard reference will be used" else "Not printed on report",
             )
+        }
+    }
+}
+
+@Composable
+private fun VaccineCard(v: EditableVaccine, vm: AppViewModel) {
+    val context = LocalContext.current
+    fun pick() {
+        val t = v.date ?: java.time.LocalDate.now()
+        android.app.DatePickerDialog(context, { _, y, m, day -> vm.setVaccineDate(v.key, java.time.LocalDate.of(y, m + 1, day)) }, t.year, t.monthValue - 1, t.dayOfMonth)
+            .apply { datePicker.maxDate = System.currentTimeMillis() }.show()
+    }
+    Card(Modifier.clickable { pick() }) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(v.label, Modifier.weight(1f), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = K.Ink)
+                Box(Modifier.size(40.dp).clip(RoundedCornerShape(20.dp)).clickable { vm.removeVaccine(v.key) }, contentAlignment = Alignment.Center) {
+                    Icon(KIcons.Close, "Remove", Modifier.size(18.dp), tint = K.Muted)
+                }
+            }
+            Spacer10()
+            Row2("Given on", v.date?.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)) ?: "Date not found. Tap to set")
+            Row2("Scheduled for", v.milestone)
         }
     }
 }

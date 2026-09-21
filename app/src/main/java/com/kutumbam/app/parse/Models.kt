@@ -42,4 +42,5 @@ data class ParsedDocument(
     val date: LocalDate?,
     val medicines: List<ParsedMedicine>,
     val labValues: List<ParsedLabValue>,
+    val vaccinations: List<ParsedVaccination> = emptyList(),
 )

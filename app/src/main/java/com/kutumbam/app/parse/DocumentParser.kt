@@ -28,6 +28,16 @@ object DocumentDates {
     private val NAMED = Regex("""\b(\d{1,2})[\s\-]([A-Za-z]{3,9})[\s\-,]*(\d{2,4})\b""")
     private val DOB_HINT = Regex("""dob|d\.o\.b|birth|age""", RegexOption.IGNORE_CASE)
 
+    /** The first date on a single line, or null. Used for card rows like "OPV-1  31/08/2026". */
+    fun findInLine(line: String): LocalDate? {
+        NUMERIC.find(line)?.let { m -> toDate(m.groupValues[1].toInt(), m.groupValues[2].toInt(), m.groupValues[3].toInt())?.let { return it } }
+        NAMED.find(line)?.let { m ->
+            val month = monthOf(m.groupValues[2]) ?: return null
+            return toDate(m.groupValues[1].toInt(), month, m.groupValues[3].toInt())
+        }
+        return null
+    }
+
     fun find(text: String): LocalDate? {
         val candidates = mutableListOf<Pair<LocalDate, Boolean>>()
         for (line in text.lines()) {
@@ -59,6 +69,7 @@ object DocumentParser {
         val type = forcedType ?: DocumentClassifier.classify(text)
         val labs = if (type == DocumentType.LAB_REPORT || type == DocumentType.UNKNOWN) LabReportParser.parse(text) else emptyList()
         val meds = if (type == DocumentType.PRESCRIPTION || type == DocumentType.UNKNOWN) PrescriptionParser.parse(text) else emptyList()
-        return ParsedDocument(type, DocumentDates.find(text), meds, labs)
+        val vaccines = if (type == DocumentType.VACCINATION_CARD || type == DocumentType.UNKNOWN) VaccinationCardParser.parse(text) else emptyList()
+        return ParsedDocument(type, DocumentDates.find(text), meds, labs, vaccines)
     }
 }

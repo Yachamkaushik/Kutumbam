@@ -56,6 +56,7 @@ import java.time.LocalDate
 @Composable
 fun HomeScreen(vm: AppViewModel) {
     val ui by vm.home.collectAsState()
+    val child by vm.child.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
     var showScan by remember { mutableStateOf(false) }
     val capture = rememberCapture(vm::processImage)
@@ -91,6 +92,8 @@ fun HomeScreen(vm: AppViewModel) {
         }
 
         ui.alert?.let { AlertBanner(it.text) { vm.openReport(it.documentId) } }
+
+        child?.let { c -> VaccinationSummary(c) { vm.openChild() } }
 
         val member = ui.selected
         if (member == null) {
@@ -215,6 +218,32 @@ private fun Tile(icon: ImageVector, label: String, modifier: Modifier, onClick: 
     }
 }
 
+@Composable
+private fun VaccinationSummary(c: ChildUi, onClick: () -> Unit) {
+    val overdue = c.overdueDoses
+    val next = c.next
+    Row(
+        Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp))
+            .background(if (overdue > 0) K.WarnBg else K.TealTint).border(1.dp, if (overdue > 0) K.WarnBorder else K.Border, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick).padding(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top,
+    ) {
+        Icon(if (overdue > 0) KIcons.Alert else KIcons.Heart, null, Modifier.padding(top = 2.dp).size(18.dp), tint = if (overdue > 0) K.WarnIcon else K.Teal)
+        Column {
+            Text("Vaccinations · ${c.ageText}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (overdue > 0) K.WarnText else K.Teal)
+            Text(
+                when {
+                    overdue > 0 -> "$overdue ${if (overdue == 1) "dose is" else "doses are"} overdue. Tap to see the schedule."
+                    next != null && next.status == com.kutumbam.app.parse.VaccineStatus.DUE -> "Due now: ${next.pendingTitle}. Tap to see the schedule."
+                    next != null -> "Next: ${next.pendingTitle} (${com.kutumbam.app.parse.ImmunizationEngine.relativeText(next, c.today)}). Tap to see the schedule."
+                    else -> "Every dose on the schedule is recorded."
+                },
+                fontSize = 13.sp, lineHeight = 19.sp, color = if (overdue > 0) K.WarnText else K.Ink, modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+    }
+}
+
 private val RELATIONS = listOf("Mother", "Father", "Spouse", "Child", "Grandparent", "Other")
 
 @Composable
@@ -224,7 +253,8 @@ private fun AddMemberDialog(onDismiss: () -> Unit, onAdd: (String, String, Strin
     var dob by remember { mutableStateOf("") }
     var selfOperates by remember { mutableStateOf(false) }
     val dobDate = runCatching { LocalDate.parse(dob) }.getOrNull()
-    val dobOk = dob.isEmpty() || dobDate != null
+    val needsDob = relation == "Child"
+    val dobOk = if (needsDob) dobDate != null else (dob.isEmpty() || dobDate != null)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -235,7 +265,7 @@ private fun AddMemberDialog(onDismiss: () -> Unit, onAdd: (String, String, Strin
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     RELATIONS.forEach { r -> FilterChip(selected = relation == r, onClick = { relation = r }, label = { Text(r) }) }
                 }
-                OutlinedTextField(dob, { dob = it }, label = { Text("Date of birth (YYYY-MM-DD)") }, singleLine = true, isError = !dobOk)
+                OutlinedTextField(dob, { dob = it }, label = { Text(if (needsDob) "Date of birth (YYYY-MM-DD), needed for vaccines" else "Date of birth (YYYY-MM-DD)") }, singleLine = true, isError = !dobOk)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Uses the phone themselves", Modifier.weight(1f), fontSize = 14.sp)
                     Switch(selfOperates, { selfOperates = it })

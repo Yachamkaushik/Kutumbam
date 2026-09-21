@@ -28,6 +28,8 @@ data class ConfirmedLab(
     val rangeText: String?,
 )
 
+data class ConfirmedVaccine(val scheduleId: String, val date: LocalDate)
+
 class Repository(context: Context) {
     private val dao = Room.databaseBuilder(context, AppDb::class.java, "kutumbam.db")
         // Pre-release: the schema is still moving, so a version bump rebuilds the local database.
@@ -37,6 +39,15 @@ class Repository(context: Context) {
     fun medicines(memberId: Long) = dao.medicines(memberId)
     fun doseLogs(date: LocalDate) = dao.doseLogs(date.toString())
     fun latestFlagged(memberId: Long) = dao.latestFlagged(memberId)
+    suspend fun allMembers() = dao.allMembers()
+    fun immunizations(memberId: Long) = dao.immunizations(memberId)
+    suspend fun immunizationsNow(memberId: Long) = dao.immunizationsNow(memberId)
+
+    suspend fun markVaccine(memberId: Long, scheduleId: String, date: LocalDate) =
+        dao.upsertImmunizations(listOf(ImmunizationRecord(memberId = memberId, scheduleId = scheduleId, administeredDate = date.toString())))
+
+    suspend fun unmarkVaccine(memberId: Long, scheduleId: String) = dao.deleteImmunization(memberId, scheduleId)
+
     fun labsForDocument(docId: Long) = dao.labsForDocument(docId)
     fun labHistory(memberId: Long) = dao.labHistory(memberId)
     fun reportSummaries(memberId: Long) = dao.reportSummaries(memberId)
@@ -63,6 +74,7 @@ class Repository(context: Context) {
         documentDate: LocalDate?,
         medicines: List<ConfirmedMedicine>,
         labs: List<ConfirmedLab>,
+        vaccinations: List<ConfirmedVaccine> = emptyList(),
     ): Long {
         val today = LocalDate.now()
         val docId = dao.insertDocument(DocumentEntity(memberId = memberId, type = type, sourceImagePath = imagePath, captureDate = today.toString(), ocrRawText = rawText))
@@ -88,6 +100,7 @@ class Repository(context: Context) {
                 rangeSource = when { printed -> "printed"; fallback != null -> "standard"; else -> "none" },
             )
         })
+        dao.upsertImmunizations(vaccinations.map { ImmunizationRecord(memberId = memberId, scheduleId = it.scheduleId, administeredDate = it.date.toString(), sourceDocumentId = docId) })
         return docId
     }
 }

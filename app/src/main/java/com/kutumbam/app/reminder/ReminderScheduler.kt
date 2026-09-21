@@ -20,6 +20,8 @@ object ReminderScheduler {
     const val ACTION_FIRE = "com.kutumbam.app.REMINDER_FIRE"
     const val ACTION_TAKEN = "com.kutumbam.app.REMINDER_TAKEN"
     const val ACTION_TEST = "com.kutumbam.app.REMINDER_TEST"
+    const val ACTION_VACCINE = "com.kutumbam.app.VACCINE_DIGEST"
+    private const val VACCINE_CODE = 2
     const val EXTRA_MEDICINE = "medicineId"
     const val EXTRA_TIME = "time"
 
@@ -27,6 +29,7 @@ object ReminderScheduler {
     suspend fun scheduleAll(context: Context) {
         val repo = (context.applicationContext as KutumbamApp).repo
         repo.allMedicines().forEach { scheduleMedicine(context, it) }
+        armVaccineDigest(context, LocalDateTime.now())
     }
 
     fun scheduleMedicine(context: Context, m: MedicineEntity) {
@@ -38,6 +41,13 @@ object ReminderScheduler {
         val trigger = nextOccurrence(m, time, after) ?: return
         arm(context, requestCode(m.id, time), trigger, Intent(context, ReminderReceiver::class.java).setAction(ACTION_FIRE)
             .putExtra(EXTRA_MEDICINE, m.id).putExtra(EXTRA_TIME, time.toString()))
+    }
+
+    /** One check a day at 9:00: due within 3 days, or overdue. Re-armed by the receiver each time it runs. */
+    fun armVaccineDigest(context: Context, after: LocalDateTime) {
+        var at = after.toLocalDate().atTime(9, 0)
+        if (!at.isAfter(after)) at = at.plusDays(1)
+        arm(context, VACCINE_CODE, at, Intent(context, ReminderReceiver::class.java).setAction(ACTION_VACCINE))
     }
 
     fun scheduleTest(context: Context, secondsFromNow: Long = 5) {

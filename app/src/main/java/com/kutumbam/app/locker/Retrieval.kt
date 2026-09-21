@@ -43,6 +43,7 @@ object Retrieval {
         "drug", "drugs", "prescription", "prescribed", "morning", "afternoon", "evening", "night", "bedtime", "food", "breakfast", "lunch", "dinner",
         "today", "now", "schedule", "take", "takes", "taking", "refill",
     )
+    private val REFILL_WORDS = setOf("run", "runs", "running", "refill", "refills", "enough", "finish", "finishes", "supply", "stock", "remaining", "left", "last", "lasts")
     private val VACCINE_WORDS = setOf(
         "vaccine", "vaccines", "vaccination", "vaccinations", "immunization", "immunisation", "injection", "injections", "shot", "shots",
         "overdue", "due", "bcg", "opv", "polio", "penta", "pentavalent", "rotavirus", "mmr", "measles", "rubella", "pcv", "ipv", "fipv",
@@ -131,6 +132,7 @@ object Retrieval {
     private fun medicines(tokens: Set<String>, data: LockerData): Pair<List<Fact>, String>? {
         if (data.medicines.isEmpty()) return null
         val byName = data.medicines.filter { m -> m.name.lowercase().split(Regex("[^a-z0-9]+")).any { it.length >= 3 && it in tokens } }
+        if (tokens.any { it in REFILL_WORDS } && (byName.isNotEmpty() || tokens.any { it in MED_WORDS })) return supply(byName, data)
         val hint = tokens.any { it in MED_WORDS }
         if (byName.isEmpty() && !hint) return null
 
@@ -154,6 +156,25 @@ object Retrieval {
         list = list.take(12)
         val facts = list.map { Fact(medFactText(it, data.today), medShort(it), it.source) }
         val text = heading + ":\n" + facts.joinToString("\n") { "• ${it.short}" }
+        return facts to text
+    }
+
+    /** How long the tablets will last, from the count the family entered. Only medicines with a count can be answered. */
+    private fun supply(named: List<MedRecord>, data: LockerData): Pair<List<Fact>, String> {
+        val pool = named.ifEmpty { data.medicines.filter { active(it, data.today) && !it.sos } }
+        val known = pool.filter { it.supply != null }.take(12)
+        if (known.isEmpty()) {
+            val src = (pool.firstOrNull() ?: data.medicines.first()).source
+            val text = "No tablet count is saved for ${data.person}'s ${if (named.isNotEmpty()) named.joinToString(" and ") { it.name } else "medicines"}, so I can't estimate when they will run out. " +
+                "Tap the medicine under Medicine supply on the home screen to add the count."
+            return listOf(Fact(text, text, src)) to text
+        }
+        val facts = known.map { m ->
+            val s = m.supply!!
+            val body = medName(m) + " " + s.phrase + (s.left?.let { "; $it" } ?: "") + ". Estimated from the schedule and the tablets counted on ${s.countedOn.format(LONG)}."
+            Fact(body, medName(m) + " " + s.phrase + (s.left?.let { "; $it" } ?: "") + ".", m.source)
+        }
+        val text = "Estimated supply for ${data.person}:\n" + facts.joinToString("\n") { "• ${it.short}" } + "\nThis is an estimate from the schedule; recount the tablets to correct it."
         return facts to text
     }
 

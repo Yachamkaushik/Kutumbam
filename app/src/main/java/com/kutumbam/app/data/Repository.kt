@@ -9,6 +9,8 @@ import com.kutumbam.app.parse.RangeStatus
 import com.kutumbam.app.parse.TestNames
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
+import java.time.LocalDateTime
+import com.kutumbam.app.parse.DoseUnits
 
 /** One confirmed medicine as the user approved it on the confirm screen. */
 data class ConfirmedMedicine(
@@ -20,6 +22,7 @@ data class ConfirmedMedicine(
     val meal: String,
     val durationDays: Int?,
     val quantity: Int? = null,
+    val units: List<Double> = emptyList(),
 )
 
 data class ConfirmedLab(
@@ -36,7 +39,7 @@ data class ConfirmedVaccine(val scheduleId: String, val date: LocalDate)
 class Repository(context: Context) {
     private val dao = Room.databaseBuilder(context, AppDb::class.java, "kutumbam.db")
         // Pre-release: the schema is still moving, so a version bump rebuilds the local database.
-        .addMigrations(MIGRATION_3_4)
+        .addMigrations(MIGRATION_3_4, MIGRATION_4_5)
         .fallbackToDestructiveMigration(true).build().dao()
 
     fun members(): Flow<List<FamilyMember>> = dao.members()
@@ -66,7 +69,7 @@ class Repository(context: Context) {
 
     suspend fun addMember(m: FamilyMember) = dao.insertMember(m)
     /** The family counted [count] tablets today; the refill estimate restarts from here. */
-    suspend fun setStock(medicineId: Long, count: Int) = dao.setStock(medicineId, count, LocalDate.now().toString())
+    suspend fun setStock(medicineId: Long, count: Int) = dao.setStock(medicineId, count, LocalDateTime.now().withNano(0).toString())
     suspend fun setLanguage(id: Long, code: String) = dao.setLanguage(id, code)
 
     suspend fun setDose(medicineId: Long, date: LocalDate, time: String, taken: Boolean) {
@@ -92,7 +95,8 @@ class Repository(context: Context) {
                 documentId = docId, memberId = memberId, name = it.name, strength = it.strength, form = it.form,
                 frequencyCode = it.frequencyCode, timesCsv = it.times.joinToString(",") { t -> t.toString() },
                 mealTiming = it.meal, durationDays = it.durationDays, startDate = today.toString(), confirmedByUser = true,
-                stockCount = it.quantity, stockAsOf = if (it.quantity != null) today.toString() else null,
+                stockCount = it.quantity, stockAsOf = if (it.quantity != null) LocalDateTime.now().withNano(0).toString() else null,
+                unitsCsv = it.units.takeIf { u -> u.size == it.times.size && !DoseUnits.allOne(u) }?.let(DoseUnits::toCsv),
             )
         }
         dao.insertMedicines(saved)
@@ -115,6 +119,12 @@ class Repository(context: Context) {
     }
 
     private companion object {
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE medicine ADD COLUMN unitsCsv TEXT")
+            }
+        }
+
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE medicine ADD COLUMN stockCount INTEGER")

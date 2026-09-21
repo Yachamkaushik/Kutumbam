@@ -14,6 +14,8 @@ data class Frequency(
     val code: FrequencyCode,
     val times: List<LocalTime>,
     val raw: String,
+    /** Tablets per dose, in the same order as [times]; empty means one each. */
+    val units: List<Double> = emptyList(),
 )
 
 data class ParsedMedicine(

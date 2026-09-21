@@ -14,7 +14,8 @@ enum class AppLanguage(val code: String, val locale: Locale, val label: String, 
     }
 }
 
-data class ScriptDose(val time: LocalTime, val medicine: String, val meal: MealTiming)
+/** [units] is tablets per dose; anything other than one tablet is spoken. */
+data class ScriptDose(val time: LocalTime, val medicine: String, val meal: MealTiming, val units: Double = 1.0)
 
 /**
  * What the phone says aloud. Plain templates over already-confirmed data, no model involved, so the
@@ -54,10 +55,20 @@ object ElderScript {
     private fun dose(l: AppLanguage, d: ScriptDose): String {
         val meal = meal(l, d.meal)
         val tail = if (meal.isEmpty()) "" else ", $meal"
+        val many = d.units != 1.0
         return when (l) {
-            AppLanguage.TELUGU -> "${time(l, d.time)}, ${d.medicine} తీసుకోండి$tail."
-            AppLanguage.HINDI -> "${time(l, d.time)}, ${d.medicine} लीजिए$tail।"
-            AppLanguage.ENGLISH -> "At ${time(l, d.time)}, take ${d.medicine}$tail."
+            AppLanguage.TELUGU -> "${time(l, d.time)}, ${d.medicine}${if (many) " " + count(l, d.units) else ""} తీసుకోండి$tail."
+            AppLanguage.HINDI -> "${time(l, d.time)}, ${d.medicine}${if (many) " की " + count(l, d.units) else ""} लीजिए$tail।"
+            AppLanguage.ENGLISH -> "At ${time(l, d.time)}, take ${if (many) count(l, d.units) + " of " else ""}${d.medicine}$tail."
+        }
+    }
+
+    private fun count(l: AppLanguage, u: Double): String {
+        val n = if (u % 1.0 == 0.0) u.toLong().toString() else u.toString()
+        return when (l) {
+            AppLanguage.TELUGU -> when (u) { 0.5 -> "అర మాత్ర"; 1.5 -> "ఒకటిన్నర మాత్రలు"; 2.0 -> "రెండు మాత్రలు"; 3.0 -> "మూడు మాత్రలు"; else -> "$n మాత్రలు" }
+            AppLanguage.HINDI -> when (u) { 0.5 -> "आधी गोली"; 1.5 -> "डेढ़ गोली"; 2.0 -> "दो गोलियाँ"; 3.0 -> "तीन गोलियाँ"; else -> "$n गोलियाँ" }
+            AppLanguage.ENGLISH -> when (u) { 0.5 -> "half a tablet"; 1.5 -> "one and a half tablets"; 2.0 -> "2 tablets"; else -> "$n tablets" }
         }
     }
 

@@ -10,6 +10,9 @@ enum class SourceKind { PRESCRIPTION, LAB_REPORT, VACCINATION }
 /** Where an answer came from, so the person can go and check it. */
 data class Source(val kind: SourceKind, val label: String, val documentId: Long? = null)
 
+/** The refill estimate for a medicine that has a tablet count; already worded by the predictor. */
+data class SupplyInfo(val phrase: String, val left: String?, val countedOn: LocalDate, val needsRefill: Boolean)
+
 data class MedRecord(
     val name: String,
     val strength: String?,
@@ -19,6 +22,7 @@ data class MedRecord(
     val durationDays: Int?,
     val startDate: LocalDate,
     val source: Source,
+    val supply: SupplyInfo? = null,
 )
 
 data class LabRecord(

@@ -59,7 +59,7 @@ interface KutumbamDao {
 
 @Database(
     entities = [FamilyMember::class, DocumentEntity::class, MedicineEntity::class, LabValueEntity::class, DoseLog::class, ImmunizationRecord::class],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 abstract class AppDb : RoomDatabase() {

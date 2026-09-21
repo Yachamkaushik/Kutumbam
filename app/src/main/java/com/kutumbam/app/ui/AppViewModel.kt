@@ -11,7 +11,17 @@ import com.kutumbam.app.data.FamilyMember
 import com.kutumbam.app.data.MedicineEntity
 import com.kutumbam.app.data.ReportSummary
 import com.kutumbam.app.data.refill
+import com.kutumbam.app.locker.SupplyInfo
 import com.kutumbam.app.parse.RefillText
+import com.kutumbam.app.data.doseSlots
+import com.kutumbam.app.parse.DoseUnits
+import com.kutumbam.app.parse.DuplicateCheck
+import com.kutumbam.app.parse.DuplicateWarning
+import com.kutumbam.app.parse.MedRef
+import com.kutumbam.app.parse.RefillPredictor
+import com.kutumbam.app.parse.RefillStatus
+import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 import com.kutumbam.app.data.LabValueEntity
 import com.kutumbam.app.llm.Prompts
 import com.kutumbam.app.llm.generate
@@ -76,6 +86,8 @@ data class DoseRow(
     val instruction: String,
     val taken: Boolean,
     val meal: MealTiming = MealTiming.UNSPECIFIED,
+    val units: Double = 1.0,
+    val form: String? = null,
 ) {
     val timeText: String get() = time.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
 }
@@ -83,7 +95,7 @@ data class DoseRow(
 data class AlertInfo(val text: String, val documentId: Long)
 
 /** One medicine's supply on the home screen. [count] is what the family last counted; null means not set yet. */
-data class SupplyRow(val medicineId: Long, val name: String, val text: String, val urgent: Boolean, val count: Int?)
+data class SupplyRow(val medicineId: Long, val name: String, val text: String, val urgent: Boolean, val count: Int?, val suggested: Int? = null, val suggestedNote: String? = null)
 
 data class HomeUi(
     val members: List<FamilyMember> = emptyList(),
@@ -92,6 +104,7 @@ data class HomeUi(
     val alert: AlertInfo? = null,
     val reports: List<ReportSummary> = emptyList(),
     val supply: List<SupplyRow> = emptyList(),
+    val duplicates: List<DuplicateWarning> = emptyList(),
 )
 
 data class LabRow(
@@ -130,8 +143,12 @@ data class EditableMed(
     val meal: MealTiming,
     val durationDays: String,
     val quantity: String = "",
+    /** Tablets per dose, same order as [times]. */
+    val units: List<Double> = emptyList(),
     val editing: Boolean = false,
-)
+) {
+    fun unitsFull(): List<Double> = if (units.size == times.size) units else List(times.size) { 1.0 }
+}
 
 /** A vaccine dose read from a card. The date must be set before the dose can be saved. */
 data class EditableVaccine(val key: Int, val scheduleId: String, val label: String, val milestone: String, val date: LocalDate?)
@@ -181,6 +198,8 @@ data class Draft(
     val meds: List<EditableMed>,
     val labs: List<ParsedLabValue>,
     val vaccines: List<EditableVaccine> = emptyList(),
+    /** What this person is already taking, to spot overlaps with the new prescription. */
+    val existing: List<MedRef> = emptyList(),
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -215,8 +234,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             combine(repo.medicines(member.id), repo.doseLogs(today), repo.latestFlagged(member.id), repo.reportSummaries(member.id)) { meds, logs, flagged, reports ->
                 val taken = logs.map { Triple(it.medicineId, it.time, it.status) }.filter { it.third == "taken" }.map { it.first to it.second }.toSet()
                 val doses = meds.filter { courseActive(it, today) }.flatMap { m ->
-                    m.timesCsv.split(",").filter { it.isNotBlank() }.map { t ->
-                        DoseRow(m.id, LocalTime.parse(t), listOfNotNull(m.name, m.strength).joinToString(" "), mealText(m.mealTiming), (m.id to t) in taken, MealTiming.valueOf(m.mealTiming))
+                    val times = m.timesCsv.split(",").filter { it.isNotBlank() }
+                    val units = DoseUnits.fromCsv(m.unitsCsv, times.size)
+                    times.mapIndexed { i, t ->
+                        val count = DoseUnits.phrase(units[i], m.form)
+                        DoseRow(m.id, LocalTime.parse(t), listOfNotNull(m.name, m.strength).joinToString(" "), listOfNotNull(count, mealText(m.mealTiming).ifEmpty { null }).joinToString(" · "), (m.id to t) in taken, MealTiming.valueOf(m.mealTiming), if (count != null) units[i] else 1.0, m.form)
                     }
                 }.sortedBy { it.time }
                 val alert = flagged?.let {
@@ -227,17 +249,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         it.documentId,
                     )
                 }
-                val supply = meds.filter { courseActive(it, today) }.map { m ->
-                    val e = m.refill(today)
+                val now = LocalDateTime.now()
+                val supply = meds.filter { courseActive(it, today) && it.doseSlots().isNotEmpty() }.map { m ->
+                    val e = m.refill(now)
+                    val name = listOfNotNull(m.name, m.strength).joinToString(" ")
                     val text = when {
                         e == null -> "Tablets in the pack not set. Tap to add the count."
-                        e.needsReminder -> RefillText.phrase(e).replaceFirstChar { it.uppercase() } + ". Time to get a refill."
-                        else -> RefillText.phrase(e).replaceFirstChar { it.uppercase() } + "."
+                        else -> {
+                            val head = RefillText.phrase(e).replaceFirstChar { it.uppercase() } + "."
+                            val left = if (e.status == RefillStatus.COURSE_ENDS) null else RefillText.left(e)?.replaceFirstChar { it.uppercase() } + "."
+                            val tail = when {
+                                e.needsReminder -> "Time to get a refill."
+                                e.countIsStale(now) -> "Counted ${ChronoUnit.DAYS.between(e.countedAt, now)} days ago. Tap to recount."
+                                else -> null
+                            }
+                            listOfNotNull(head, left, tail).joinToString(" ")
+                        }
                     }
-                    SupplyRow(m.id, listOfNotNull(m.name, m.strength).joinToString(" "), text, e?.needsReminder == true, m.stockCount)
-                }.filter { m -> meds.first { it.id == m.medicineId }.frequencyCode != FrequencyCode.SOS.name }
-                    .sortedWith(compareByDescending<SupplyRow> { it.urgent }.thenBy { it.name })
-                HomeUi(members, member, doses, alert, reports, supply)
+                    val suggested = if (m.stockCount == null) RefillPredictor.courseSupply(m.doseSlots(), m.durationDays) else null
+                    val note = suggested?.let { "the whole ${m.durationDays}-day course at ${trim(RefillPredictor.unitsPerDay(m.doseSlots()))} a day" }
+                    SupplyRow(m.id, name, text, e?.needsReminder == true, m.stockCount, suggested, note)
+                }.sortedWith(compareByDescending<SupplyRow> { it.urgent }.thenBy { it.name })
+                val duplicates = DuplicateCheck.find(meds.filter { courseActive(it, today) }.map { MedRef(it.name, it.strength) })
+                HomeUi(members, member, doses, alert, reports, supply, duplicates)
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUi())
@@ -407,6 +441,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 name = m.name, strength = m.strength, times = m.timesCsv.split(",").filter { it.isNotBlank() }.map { LocalTime.parse(it) },
                 sos = m.frequencyCode == FrequencyCode.SOS.name, meal = MealTiming.valueOf(m.mealTiming), durationDays = m.durationDays,
                 startDate = LocalDate.parse(m.startDate), source = Source(SourceKind.PRESCRIPTION, "Prescription · ${LocalDate.parse(stamp).format(fmt)}", m.documentId),
+                supply = m.refill(LocalDateTime.now())?.let { e -> SupplyInfo(RefillText.phrase(e), if (e.status == RefillStatus.COURSE_ENDS) null else RefillText.left(e), e.countedAt.toLocalDate(), e.needsReminder) },
             )
         }
         val labs = repo.labsNow(member.id).map { l ->
@@ -520,7 +555,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val speaker = kApp.speaker
         if (speaking.value) { speaker.stop(); return }
         val lang = AppLanguage.fromCode(member.preferredLanguage)
-        val script = com.kutumbam.app.speech.ElderScript.build(lang, member.name, ui.doses.filterNot { it.taken }.map { ScriptDose(it.time, it.name, it.meal) })
+        val script = com.kutumbam.app.speech.ElderScript.build(lang, member.name, ui.doses.filterNot { it.taken }.map { ScriptDose(it.time, it.name, it.meal, it.units) })
         speaker.speak(script, lang) { result ->
             when (result) {
                 SpeakResult.STARTED -> Unit
@@ -569,8 +604,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                                 times = m.frequency?.times ?: FrequencyParser.defaultTimes(FrequencyCode.OD),
                                 meal = m.meal, durationDays = m.durationDays?.toString().orEmpty(),
                                 quantity = m.quantity?.toString().orEmpty(),
+                                units = m.frequency?.units?.takeIf { u -> u.size == (m.frequency?.times?.size ?: 0) }.orEmpty(),
                             )
                         },
+                        existing = repo.medicinesNow(member.id).filter { courseActive(it, LocalDate.now()) }.map { MedRef(it.name, it.strength) },
                         labs = doc.labValues,
                         vaccines = doc.vaccinations.mapIndexed { i, v ->
                             EditableVaccine(i, v.scheduleId, v.label, UipSchedule.byId(v.scheduleId)?.milestone?.ageLabel.orEmpty(), v.date)
@@ -591,10 +628,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setFrequency(key: Int, code: FrequencyCode) =
-        updateMed(key) { it.copy(frequency = code, times = FrequencyParser.defaultTimes(code)) }
+        updateMed(key) { val t = FrequencyParser.defaultTimes(code); it.copy(frequency = code, times = t, units = List(t.size) { 1.0 }) }
 
+    /** Changing a time keeps its tablet count attached, then re-sorts the day. */
     fun setTime(key: Int, index: Int, time: LocalTime) =
-        updateMed(key) { m -> m.copy(times = m.times.toMutableList().also { it[index] = time }.sorted()) }
+        updateMed(key) { m ->
+            val pairs = m.times.zip(m.unitsFull()).toMutableList().also { it[index] = time to it[index].second }.sortedBy { it.first }
+            m.copy(times = pairs.map { it.first }, units = pairs.map { it.second })
+        }
+
+    fun setUnits(key: Int, index: Int, units: Double) =
+        updateMed(key) { m -> m.copy(units = m.unitsFull().toMutableList().also { it[index] = units }) }
 
     /** The family counted the tablets they have now (after a refill, or the first time). */
     fun setSupply(medicineId: Long, count: Int) {
@@ -619,6 +663,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         name = it.name.trim(), strength = it.strength.trim().ifEmpty { null }, form = it.form,
                         frequencyCode = it.frequency.name, times = it.times, meal = it.meal.name, durationDays = it.durationDays.toIntOrNull(),
                         quantity = it.quantity.toIntOrNull()?.takeIf { q -> q > 0 },
+                        units = it.unitsFull(),
                     )
                 },
                 labs = d.labs.map { ConfirmedLab(it.testName, it.value, it.unit, it.rangeLow, it.rangeHigh, it.rangeText) },

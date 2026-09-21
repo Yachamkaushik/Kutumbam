@@ -6,6 +6,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import com.kutumbam.app.parse.DoseUnits
+import com.kutumbam.app.parse.DuplicateCheck
+import com.kutumbam.app.parse.MedRef
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -67,6 +70,10 @@ fun ConfirmScreen(vm: AppViewModel) {
         )
 
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            val overlaps = androidx.compose.runtime.remember(d.meds, d.existing) {
+                DuplicateCheck.find(d.existing + d.meds.filter { it.name.isNotBlank() }.map { MedRef(it.name.trim(), it.strength.trim().ifEmpty { null }, isNew = true) })
+            }
+            if (overlaps.isNotEmpty()) WarningCard("Possible duplicate medicines", overlaps.map { it.text })
             d.meds.forEach { m -> MedCard(m, vm) }
             d.labs.forEachIndexed { i, lab -> LabCard(lab) { vm.removeLab(i) } }
             d.vaccines.forEach { v -> VaccineCard(v, vm) }
@@ -113,7 +120,10 @@ private fun MedCard(m: EditableMed, vm: AppViewModel) {
                 Row2("Meal timing", mealLabel(m.meal))
                 Row2("Duration", m.durationDays.toIntOrNull()?.let { "$it days" } ?: "Not stated")
                 Row2("Tablets in pack", m.quantity.toIntOrNull()?.toString() ?: "Not stated (add it for refill reminders)")
-                if (m.times.isNotEmpty()) Row2("Reminders", m.times.joinToString(", ") { it.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)) })
+                if (m.times.isNotEmpty()) {
+                    val u = m.unitsFull()
+                    Row2("Reminders", m.times.mapIndexed { i, t -> t.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)) + (DoseUnits.phrase(u[i], m.form)?.let { " ($it)" } ?: "") }.joinToString(", "))
+                }
             }
         }
     }
@@ -137,15 +147,19 @@ private fun MedEditor(m: EditableMed, vm: AppViewModel) {
             }
         }
         if (m.times.isNotEmpty()) {
-            Text("Reminder times (tap to change)", fontSize = 12.sp, color = K.Muted)
+            Text("Reminder times (tap to change) and tablets per dose", fontSize = 12.sp, color = K.Muted)
             val context = LocalContext.current
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                m.times.forEachIndexed { i, t ->
+            val units = m.unitsFull()
+            m.times.forEachIndexed { i, t ->
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         Modifier.clip(RoundedCornerShape(10.dp)).background(K.TealTint)
                             .clickable { TimePickerDialog(context, { _, h, min -> vm.setTime(m.key, i, LocalTime.of(h, min)) }, t.hour, t.minute, false).show() }
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                     ) { Text(t.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = K.Teal) }
+                    listOf(0.5, 1.0, 1.5, 2.0, 3.0).forEach { u ->
+                        FilterChip(selected = units[i] == u, onClick = { vm.setUnits(m.key, i, u) }, label = { Text(DoseUnits.label(u)) })
+                    }
                 }
             }
         }

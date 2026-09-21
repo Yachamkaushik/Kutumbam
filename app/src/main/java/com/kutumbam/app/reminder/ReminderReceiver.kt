@@ -18,6 +18,7 @@ import com.kutumbam.app.R
 import com.kutumbam.app.data.MedicineEntity
 import com.kutumbam.app.parse.ImmunizationEngine
 import com.kutumbam.app.data.refill
+import com.kutumbam.app.parse.DoseUnits
 import com.kutumbam.app.parse.MealTiming
 import com.kutumbam.app.parse.RefillText
 import com.kutumbam.app.parse.VaccineDigest
@@ -79,10 +80,10 @@ class ReminderReceiver : BroadcastReceiver() {
     private suspend fun refillDigest(context: Context) {
         ReminderScheduler.armRefillDigest(context, LocalDateTime.now().plusMinutes(1))
         val repo = (context.applicationContext as KutumbamApp).repo
-        val today = LocalDate.now()
+        val now = LocalDateTime.now()
         val meds = repo.allMedicines().groupBy { it.memberId }
         repo.allMembers().forEach { member ->
-            val items = meds[member.id].orEmpty().mapNotNull { m -> m.refill(today)?.let { listOfNotNull(m.name, m.strength).joinToString(" ") to it } }
+            val items = meds[member.id].orEmpty().mapNotNull { m -> m.refill(now)?.let { listOfNotNull(m.name, m.strength).joinToString(" ") to it } }
             val text = RefillText.digest(items) ?: return@forEach
             notify(context, 200_000 + member.id.toInt(), "${member.name}'s medicines are running low", text, null)
         }
@@ -105,7 +106,9 @@ class ReminderReceiver : BroadcastReceiver() {
             MealTiming.UNSPECIFIED -> null
         }
         val clock = time.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
-        return listOfNotNull("$clock: ${listOfNotNull(m.name, m.strength).joinToString(" ")}", meal).joinToString(", ")
+        val times = m.timesCsv.split(",").filter { it.isNotBlank() }
+        val units = DoseUnits.fromCsv(m.unitsCsv, times.size).getOrNull(times.indexOf(time.toString())) ?: 1.0
+        return listOfNotNull("$clock: ${listOfNotNull(DoseUnits.phrase(units, m.form)?.plus(" of"), m.name, m.strength).joinToString(" ")}", meal).joinToString(", ")
     }
 
     private fun notify(context: Context, id: Int, title: String, text: String, takenIntent: Intent?) {

@@ -94,6 +94,10 @@ fun HomeScreen(vm: AppViewModel) {
 
         ui.alert?.let { AlertBanner(it.text) { vm.openReport(it.documentId) } }
 
+        if (ui.duplicates.isNotEmpty()) {
+            WarningCard("Possible duplicate medicines", ui.duplicates.map { it.text }, Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp))
+        }
+
         child?.let { c -> VaccinationSummary(c) { vm.openChild() } }
 
         val member = ui.selected
@@ -121,7 +125,7 @@ fun HomeScreen(vm: AppViewModel) {
             )
             Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 ui.supply.forEach { SupplyCard(it) { supplyEdit = it } }
-                Text("Estimated from the schedule, one tablet per dose. Tap a medicine after a refill to restart the count.", fontSize = 11.sp, color = K.Muted, lineHeight = 16.sp)
+                Text("Estimated from the schedule and each dose's tablets, assuming every dose is taken. Tap a medicine after a refill, or to recount, to restart the estimate.", fontSize = 11.sp, color = K.Muted, lineHeight = 16.sp)
             }
         }
 
@@ -190,6 +194,21 @@ internal fun Card(modifier: Modifier = Modifier, content: @Composable () -> Unit
     Box(modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(K.Card).border(BorderStroke(1.dp, K.Border), RoundedCornerShape(14.dp))) { content() }
 }
 
+/** A warm notice with a heading and one line per finding, for things to check with the doctor or pharmacist. */
+@Composable
+internal fun WarningCard(title: String, lines: List<String>, modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(K.WarnBg).border(1.dp, K.WarnBorder, RoundedCornerShape(14.dp)).padding(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(KIcons.Alert, null, Modifier.padding(top = 2.dp).size(18.dp), tint = K.WarnIcon)
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = K.WarnText)
+            lines.forEach { Text(it, fontSize = 13.sp, lineHeight = 19.sp, color = K.WarnText) }
+        }
+    }
+}
+
 @Composable
 private fun AlertBanner(text: String, onClick: () -> Unit) {
     Row(
@@ -246,6 +265,9 @@ private fun SupplyDialog(row: SupplyRow, onDismiss: () -> Unit, onSave: (Int) ->
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Count the tablets you have today, including a new strip, and enter the total.", fontSize = 13.sp, color = K.Muted)
+                if (row.suggested != null) {
+                    TextButton(onClick = { count = row.suggested.toString() }) { Text("Use ${row.suggested}: ${row.suggestedNote}", fontSize = 12.sp) }
+                }
                 OutlinedTextField(
                     count, { count = it.filter(Char::isDigit).take(3) }, label = { Text("Tablets you have now") }, singleLine = true,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),

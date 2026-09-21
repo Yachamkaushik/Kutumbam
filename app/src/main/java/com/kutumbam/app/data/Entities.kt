@@ -42,6 +42,8 @@ data class MedicineEntity(
     /** Tablets counted on [stockAsOf] (null when unknown), the basis of the refill estimate. */
     val stockCount: Int? = null,
     val stockAsOf: String? = null,
+    /** Tablets per dose in the same order as [timesCsv]; null means one each. */
+    val unitsCsv: String? = null,
 )
 
 @Entity(tableName = "lab_value")

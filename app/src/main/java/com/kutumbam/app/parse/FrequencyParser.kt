@@ -56,15 +56,16 @@ object FrequencyParser {
         val count = taken.count { it }
         if (count == 0) return null
         val raw = m.value.trim()
+        val units = parts.mapNotNull { DoseUnits.fromToken(it) }.filterIndexed { i, _ -> taken[i] }
         if (parts.size == 4) {
-            return Frequency(if (count == 4) FrequencyCode.QID else FrequencyCode.CUSTOM, defaultTimes(FrequencyCode.QID).filterIndexed { i, _ -> taken[i] }, raw)
+            return Frequency(if (count == 4) FrequencyCode.QID else FrequencyCode.CUSTOM, defaultTimes(FrequencyCode.QID).filterIndexed { i, _ -> taken[i] }, raw, units)
         }
         val slots = listOf(MORNING, NOON, NIGHT).filterIndexed { i, _ -> taken[i] }
         return when {
-            count == 3 -> Frequency(FrequencyCode.TDS, slots, raw)
-            count == 2 -> Frequency(FrequencyCode.BD, slots, raw)
-            taken[2] -> Frequency(FrequencyCode.HS, listOf(BEDTIME), raw) // 0-0-1
-            else -> Frequency(FrequencyCode.OD, slots, raw)
+            count == 3 -> Frequency(FrequencyCode.TDS, slots, raw, units)
+            count == 2 -> Frequency(FrequencyCode.BD, slots, raw, units)
+            taken[2] -> Frequency(FrequencyCode.HS, listOf(BEDTIME), raw, units) // 0-0-1
+            else -> Frequency(FrequencyCode.OD, slots, raw, units)
         }
     }
 

@@ -129,4 +129,17 @@ class LockerTest {
         assertTrue(p.startsWith("Records:\n1. Metformin 500 mg"))
         assertTrue(p.endsWith("Question: what does she take in the morning"))
     }
+
+    @Test fun runOutQuestionsUseTheStoredCount() {
+        val counted = com.kutumbam.app.locker.SupplyInfo("runs out in 3 days (24 Sep)", "about 6 tablets left", LocalDate.of(2026, 9, 21), true)
+        val withSupply = data.copy(medicines = data.medicines.map { if (it.name == "Metformin") it.copy(supply = counted) else it })
+        val r = Retrieval.retrieve("when will Amma's metformin run out?", withSupply)
+        assertTrue(r.directAnswer.contains("Metformin 500 mg runs out in 3 days (24 Sep); about 6 tablets left."))
+        assertTrue(r.directAnswer.contains("estimate"))
+        assertEquals(1, r.facts.size)
+        assertFalse(r.advice)
+        // Amlodipine has no count: say so instead of guessing.
+        val none = Retrieval.retrieve("when will the amlodipine run out", withSupply)
+        assertTrue(none.directAnswer.contains("No tablet count is saved"))
+    }
 }

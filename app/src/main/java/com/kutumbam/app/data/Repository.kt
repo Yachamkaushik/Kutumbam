@@ -36,6 +36,7 @@ class Repository(context: Context) {
     fun latestFlagged(memberId: Long) = dao.latestFlagged(memberId)
 
     suspend fun addMember(m: FamilyMember) = dao.insertMember(m)
+    suspend fun setLanguage(id: Long, code: String) = dao.setLanguage(id, code)
 
     suspend fun setDose(medicineId: Long, date: LocalDate, time: String, taken: Boolean) {
         if (taken) dao.logDose(DoseLog(medicineId = medicineId, date = date.toString(), time = time, status = "taken", loggedAt = System.currentTimeMillis()))

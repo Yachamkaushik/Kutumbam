@@ -15,6 +15,9 @@ import com.kutumbam.app.parse.FrequencyCode
 import com.kutumbam.app.parse.FrequencyParser
 import com.kutumbam.app.parse.MealTiming
 import com.kutumbam.app.parse.ParsedLabValue
+import com.kutumbam.app.speech.AppLanguage
+import com.kutumbam.app.speech.ScriptDose
+import com.kutumbam.app.speech.SpeakResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,7 +38,7 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-enum class Screen { HOME, CONFIRM, DEV }
+enum class Screen { HOME, CONFIRM, ELDER, DEV }
 
 data class DoseRow(
     val medicineId: Long,
@@ -43,6 +46,7 @@ data class DoseRow(
     val name: String,
     val instruction: String,
     val taken: Boolean,
+    val meal: MealTiming = MealTiming.UNSPECIFIED,
 ) {
     val timeText: String get() = time.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
 }
@@ -107,7 +111,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val taken = logs.map { Triple(it.medicineId, it.time, it.status) }.filter { it.third == "taken" }.map { it.first to it.second }.toSet()
                 val doses = meds.filter { courseActive(it, today) }.flatMap { m ->
                     m.timesCsv.split(",").filter { it.isNotBlank() }.map { t ->
-                        DoseRow(m.id, LocalTime.parse(t), listOfNotNull(m.name, m.strength).joinToString(" "), mealText(m.mealTiming), (m.id to t) in taken)
+                        DoseRow(m.id, LocalTime.parse(t), listOfNotNull(m.name, m.strength).joinToString(" "), mealText(m.mealTiming), (m.id to t) in taken, MealTiming.valueOf(m.mealTiming))
                     }
                 }.sortedBy { it.time }
                 val alert = flagged?.let {
@@ -119,7 +123,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUi())
 
+    val speaking = kApp.speaker.speaking
+
     fun select(id: Long) { selectedId.value = id }
+
+    fun setLanguage(lang: AppLanguage) {
+        val member = home.value.selected ?: return
+        kApp.speaker.stop()
+        viewModelScope.launch { repo.setLanguage(member.id, lang.code) }
+    }
+
+    /** Reads out the doses still to be taken today. Tapping again while speaking stops it. */
+    fun speakToday() {
+        val ui = home.value
+        val member = ui.selected ?: return
+        val speaker = kApp.speaker
+        if (speaking.value) { speaker.stop(); return }
+        val lang = AppLanguage.fromCode(member.preferredLanguage)
+        val script = com.kutumbam.app.speech.ElderScript.build(lang, member.name, ui.doses.filterNot { it.taken }.map { ScriptDose(it.time, it.name, it.meal) })
+        speaker.speak(script, lang) { result ->
+            when (result) {
+                SpeakResult.STARTED -> Unit
+                SpeakResult.VOICE_MISSING -> _message.value = "The ${lang.voiceName} voice isn't installed on this phone. Install it in Settings > System > Languages > Text-to-speech, or pick another language."
+                SpeakResult.ENGINE_UNAVAILABLE -> _message.value = "Text-to-speech isn't available on this phone."
+            }
+        }
+    }
+
+    fun stopSpeaking() = kApp.speaker.stop()
     fun show(screen: Screen) { _screen.value = screen }
     fun clearMessage() { _message.value = null }
     fun say(text: String) { _message.value = text }

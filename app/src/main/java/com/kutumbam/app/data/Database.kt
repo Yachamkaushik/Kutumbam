@@ -13,6 +13,8 @@ interface KutumbamDao {
     @Insert suspend fun insertMember(m: FamilyMember): Long
     @Query("SELECT * FROM member ORDER BY id") fun members(): Flow<List<FamilyMember>>
 
+    @Query("UPDATE member SET preferredLanguage = :lang WHERE id = :id") suspend fun setLanguage(id: Long, lang: String)
+
     @Insert suspend fun insertDocument(d: DocumentEntity): Long
     @Insert suspend fun insertMedicines(m: List<MedicineEntity>)
     @Insert suspend fun insertLabs(l: List<LabValueEntity>)

@@ -31,7 +31,7 @@ photo / WhatsApp share  ->  ML Kit OCR  ->  rule-based parser  ->  confirm & cor
 | Share-in from WhatsApp / Gallery | Built |
 | Range check against the printed range | Built (logic and Home alert) |
 | Reminders and alarms | Not started |
-| Elder voice mode (TTS) | Not started |
+| Elder voice mode (large buttons, spoken in Telugu / Hindi / English) | Built, verified on emulator except audio quality |
 | Ask-the-Locker, trend chart, immunization schedule | Not started |
 
 ## Requirements

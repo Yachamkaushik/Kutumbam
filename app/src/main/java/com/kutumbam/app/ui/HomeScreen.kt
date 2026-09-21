@@ -99,7 +99,9 @@ fun HomeScreen(vm: AppViewModel) {
                 if (member == null) vm.say("Add a family member first.") else showScan = true
             }
             Tile(KIcons.Mic, "Ask a Question", Modifier.weight(1f)) { vm.say("Ask the Locker is the next thing we build.") }
-            Tile(KIcons.Volume, "Elder Mode", Modifier.weight(1f)) { vm.say("Elder voice mode is coming next.") }
+            Tile(KIcons.Volume, "Elder Mode", Modifier.weight(1f)) {
+                if (member == null) vm.say("Add a family member first.") else vm.show(Screen.ELDER)
+            }
         }
     }
 

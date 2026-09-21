@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.kutumbam.app.ui.AppViewModel
 import com.kutumbam.app.ui.ConfirmScreen
 import com.kutumbam.app.ui.DevScreen
+import com.kutumbam.app.ui.ElderScreen
 import com.kutumbam.app.ui.HomeScreen
 import com.kutumbam.app.ui.Screen
 import com.kutumbam.app.ui.theme.K
@@ -53,13 +54,16 @@ class MainActivity : ComponentActivity() {
                 val busy by vm.busy.collectAsState()
                 val message by vm.message.collectAsState()
 
-                BackHandler(enabled = screen != Screen.HOME) { if (screen == Screen.CONFIRM) vm.discard() else vm.show(Screen.HOME) }
+                BackHandler(enabled = screen != Screen.HOME) {
+                    when (screen) { Screen.CONFIRM -> vm.discard(); Screen.ELDER -> { vm.stopSpeaking(); vm.show(Screen.HOME) }; else -> vm.show(Screen.HOME) }
+                }
 
                 Surface(Modifier.fillMaxSize(), color = K.Bg) {
                     Box(Modifier.fillMaxSize()) {
                         when (screen) {
                             Screen.HOME -> HomeScreen(vm)
                             Screen.CONFIRM -> ConfirmScreen(vm)
+                            Screen.ELDER -> ElderScreen(vm)
                             Screen.DEV -> DevScreen { vm.show(Screen.HOME) }
                         }
                         message?.let { text ->

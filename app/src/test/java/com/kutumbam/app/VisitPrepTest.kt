@@ -103,6 +103,54 @@ class VisitPrepTest {
         assertTrue(m.any { it.startsWith("Metformin 500 mg runs out in 3 days (24 Sep). Can Amma get a new prescription") })
     }
 
+    @Test fun sheetForTheUserIsInTheFirstPerson() {
+        val recent = LocalDate.of(2026, 9, 14)
+        val input = adult(
+            meds = listOf(med("Metformin", "500 mg", 2, 1, recent), med("Glycomet", "500 mg", 2, 1, recent)),
+            labs = listOf(lab("Fasting Blood Glucose", "fg", 118.0, 70.0, 100.0, LocalDate.of(2026, 9, 12))),
+        ).copy(person = "Kaushik", self = true)
+        val sheet = VisitPrep.build(input)
+        assertEquals("My doctor visit prep", sheet.title)
+        val all = sheet.sections.flatMap { it.items }.map { it.text }
+        assertTrue(all.any { it.startsWith("My Fasting Blood Glucose was 118 mg/dL") && it.contains("What does this mean for me,") })
+        assertTrue(all.any { it.contains("Am I meant to take both?") })
+        assertTrue(all.any { it.contains("when should I come back?") })
+        assertFalse(all.any { it.contains("Kaushik") })
+    }
+
+    @Test fun notesAndMissedDosesBecomeThingsToMentionAndAskAbout() {
+        val recent = LocalDate.of(2026, 9, 14)
+        val input = adult(meds = listOf(med("Metformin", "500 mg", 2, 1, recent))).copy(
+            person = "Kaushik", self = true,
+            notes = listOf(
+                com.kutumbam.app.visit.NoteItem(LocalDate.of(2026, 9, 18), "headache after lunch"),
+                com.kutumbam.app.visit.NoteItem(LocalDate.of(2026, 6, 1), "an old note"),   // too old to raise
+            ),
+            adherence = com.kutumbam.app.visit.Adherence(taken = 22, scheduled = 26),
+        )
+        val sheet = VisitPrep.build(input)
+        val mention = sheet.sections.first { it.heading == "Things to mention" }.items.map { it.text }
+        assertEquals(listOf("I noticed on 18 Sep: headache after lunch", "Is any of this worth checking?"), mention)
+        val meds = sheet.sections.first { it.heading == "Medicines" }.items.map { it.text }
+        assertTrue(meds.any { it == "In the last 14 days I marked 22 of 26 scheduled doses as taken. What should I do when I miss a dose?" })
+        // Someone else's sheet never counts their taps against them.
+        val other = VisitPrep.build(input.copy(self = false, adherence = null)).sections.flatMap { it.items }.map { it.text }
+        assertTrue(other.none { it.contains("marked") })
+        assertTrue(other.any { it.startsWith("Noticed on 18 Sep") })
+    }
+
+    @Test fun adherenceCountsOnlyFinishedDaysInsideEachCourse() {
+        val meds = listOf(
+            com.kutumbam.app.visit.ScheduledMed(1, LocalDate.of(2026, 9, 14), null, 2),     // 14..20 Sep = 7 days x 2 = 14
+            com.kutumbam.app.visit.ScheduledMed(2, LocalDate.of(2026, 9, 1), 10, 1),        // 1..10 Sep = 10 doses, all inside the 14-day window from 7 Sep: 7..10 = 4
+        )
+        val log = listOf(1L to LocalDate.of(2026, 9, 14), 1L to LocalDate.of(2026, 9, 14), 1L to LocalDate.of(2026, 9, 15), 2L to LocalDate.of(2026, 9, 8), 1L to LocalDate.of(2026, 9, 21))
+        val a = com.kutumbam.app.visit.Adherence.compute(meds, log, today)
+        assertEquals(18, a.scheduled)
+        assertEquals(4, a.taken)    // 2 + 1 + 1; the dose logged today is not counted
+        assertEquals(14, a.missed)
+    }
+
     // ---- child
 
     private val dob = LocalDate.of(2026, 7, 20)

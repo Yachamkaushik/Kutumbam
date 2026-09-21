@@ -12,6 +12,9 @@ import com.kutumbam.app.parse.RangeStatus
 import com.kutumbam.app.parse.VaccineStatus
 import com.kutumbam.app.parse.describeRange
 import com.kutumbam.app.parse.formatNumber
+import com.kutumbam.app.vitals.Limits
+import com.kutumbam.app.vitals.Reading
+import com.kutumbam.app.vitals.VitalSummary
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -28,6 +31,13 @@ data class PrepInput(
     val labs: List<LabRecord>,
     val immunization: List<MilestoneState>?,
     val growth: List<GrowthPoint>,
+    /** True when the sheet is for the person using the phone, so it is written in the first person. */
+    val self: Boolean = false,
+    val readings: List<Reading> = emptyList(),
+    val limits: Limits = emptyMap(),
+    val notes: List<NoteItem> = emptyList(),
+    /** Only filled in for the person using the phone: their own tapping is a reliable record, someone else's may not be. */
+    val adherence: Adherence? = null,
 )
 
 /** [source] says where the fact behind the question came from, so it can be checked. */
@@ -76,11 +86,13 @@ object VisitPrep {
             i.immunization?.let { sections += vaccinations(i, it) }
         }
         labs(i)?.let { sections += it }
+        readings(i)?.let { sections += it }
+        notes(i)?.let { sections += it }
         sections += medicines(i)
         sections += PrepSection("Also ask", alsoAsk(i).map { PrepItem(it) })
         val age = i.dob?.let { ImmunizationEngine.ageText(it, i.today) }
         return PrepSheet(
-            title = if (i.isChild) "Pediatrician visit prep: ${i.person}" else "Doctor visit prep: ${i.person}",
+            title = if (i.isChild) "Pediatrician visit prep: ${i.person}" else if (i.self) "My doctor visit prep" else "Doctor visit prep: ${i.person}",
             subtitle = "Prepared ${i.today.format(LONG)} from the records saved on this phone${age?.let { " · $it" } ?: ""}. These are questions to ask, not medical advice.",
             sections = sections,
             footer = "Bring: the latest prescription, recent lab reports${if (i.isChild) " and the vaccination card" else ""}.\nNew since the last visit (write here): ____________________________",
@@ -103,15 +115,44 @@ object VisitPrep {
             val side = if (status == RangeStatus.ABOVE) "above" else "below"
             val history = before?.let { " Before that it was ${formatNumber(it.value)}${it.unit?.let { u -> " $u" }.orEmpty()} on ${it.date.format(LONG)}." } ?: " It is the only reading saved."
             latest.date to PrepItem(
-                "${i.person}'s ${latest.testName} was ${formatNumber(latest.value)}$unit on ${latest.date.format(LONG)}, $side $basis${range?.let { " ($it)" }.orEmpty()}.$history " +
-                    "What does this mean for ${i.person}, and is any follow-up test or change needed?",
+                "${cap(poss(i))} ${latest.testName} was ${formatNumber(latest.value)}$unit on ${latest.date.format(LONG)}, $side $basis${range?.let { " ($it)" }.orEmpty()}.$history " +
+                    "What does this mean for ${obj(i)}, and is any follow-up test or change needed?",
                 latest.source.label,
             )
         }.sortedByDescending { it.first }.map { it.second }
         return if (items.isEmpty()) null else PrepSection("Lab results to discuss", items)
     }
 
+    // ---- home readings
+
+    private fun readings(i: PrepInput): PrepSection? {
+        val facts = VitalSummary.lines(i.readings, i.limits, i.today)
+        if (facts.isEmpty()) return null
+        val questions = VitalSummary.questions(i.readings, i.limits, i.today, i.self, i.person)
+        return PrepSection("Home readings", questions.map { PrepItem(it, "Home readings") }, note = facts.joinToString("\n"))
+    }
+
+    // ---- notes
+
+    /** How far back a note still counts as something to mention. */
+    private const val RECENT_NOTE_DAYS = 45L
+
+    private fun notes(i: PrepInput): PrepSection? {
+        val recent = i.notes.filter { !it.date.isBefore(i.today.minusDays(RECENT_NOTE_DAYS)) }.sortedBy { it.date }
+        if (recent.isEmpty()) return null
+        val lead = if (i.self) "I noticed" else "Noticed"
+        val items = recent.map { PrepItem("$lead on ${it.date.format(SHORT)}: ${it.text}", "Notes") } +
+            PrepItem("Is any of this worth checking?")
+        return PrepSection("Things to mention", items)
+    }
+
     // ---- medicines
+
+    private fun obj(i: PrepInput) = if (i.self) "me" else i.person
+    private fun subj(i: PrepInput) = if (i.self) "I" else i.person
+    private fun isSubj(i: PrepInput) = if (i.self) "Am I" else "Is ${i.person}"
+    private fun poss(i: PrepInput) = if (i.self) "my" else "${i.person}'s"
+    private fun cap(s: String) = s.replaceFirstChar { it.uppercase() }
 
     private fun name(m: MedRecord) = listOfNotNull(m.name, m.strength).joinToString(" ")
 
@@ -134,7 +175,7 @@ object VisitPrep {
         if (visits.size >= 2) {
             val latestDate = latest.minOf { it.startDate }
             val previousDate = previous.minOf { it.startDate }
-            val p = i.person
+            val p = subj(i)
             val src = latest.first().source.label
             latest.filter { m -> previous.none { sameDrug(it, m) } }.forEach { m ->
                 items += PrepItem("${name(m)} is new on the ${latestDate.format(LONG)} prescription. What is it for, and how long should $p take it?", src)
@@ -156,11 +197,14 @@ object VisitPrep {
             if (items.isEmpty()) note = "The last two prescriptions (${previousDate.format(SHORT)} and ${latestDate.format(SHORT)}) list the same medicines."
         } else if (visits.size == 1) {
             note = "Only one prescription is saved, so there are no changes to compare."
-            items += PrepItem("What is each of ${i.person}'s medicines for, and when should each course stop?", latest.first().source.label)
+            items += PrepItem("What is each of ${poss(i)} medicines for, and when should each course stop?", latest.first().source.label)
         } else {
             note = "No medicines are saved yet."
         }
 
+        i.adherence?.takeIf { it.scheduled > 0 && it.missed > 0 }?.let { a ->
+            items += PrepItem("In the last ${Adherence.WINDOW_DAYS} days I marked ${a.taken} of ${a.scheduled} scheduled doses as taken. What should I do when I miss a dose?", "Dose log")
+        }
         // Courses that have run their length.
         i.medicines.filter { !it.sos && it.durationDays != null }.forEach { m ->
             val end = m.startDate.plusDays(m.durationDays!!.toLong() - 1)
@@ -169,11 +213,11 @@ object VisitPrep {
         // Overlapping ingredients among what is being taken now.
         DuplicateCheck.find(i.medicines.filter { active(it, i.today) }.map { MedRef(it.name, it.strength) }).forEach { w ->
             val what = w.shared.filterNot { it.startsWith("~") }.sorted().joinToString(" and ")
-            items += PrepItem("${w.first.label} and ${w.second.label} ${if (what.isEmpty()) "are the same medicine" else "both contain $what"}. Is ${i.person} meant to take both?")
+            items += PrepItem("${w.first.label} and ${w.second.label} ${if (what.isEmpty()) "are the same medicine" else "both contain $what"}. ${isSubj(i)} meant to take both?")
         }
         // Running low.
         i.medicines.filter { active(it, i.today) && it.supply?.needsRefill == true }.forEach { m ->
-            items += PrepItem("${name(m)} ${m.supply!!.phrase}. Can ${i.person} get a new prescription or a refill?", m.source.label)
+            items += PrepItem("${name(m)} ${m.supply!!.phrase}. Can ${subj(i)} get a new prescription or a refill?", m.source.label)
         }
         return PrepSection("Medicines", items, note)
     }
@@ -244,7 +288,7 @@ object VisitPrep {
 
     private fun alsoAsk(i: PrepInput): List<String> = buildList {
         if (i.isChild) add("Is ${i.person}'s feeding, sleep and development on track for this age?")
-        add("Is there anything to watch for before the next visit, and when should ${i.person} come back?")
+        add("Is there anything to watch for before the next visit, and when should ${subj(i)} come back?")
         if (i.labs.isNotEmpty()) add("Which tests should be repeated, and when?")
     }
 }

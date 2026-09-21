@@ -4,6 +4,8 @@ import com.kutumbam.app.parse.DoseSlot
 import com.kutumbam.app.parse.DoseUnits
 import com.kutumbam.app.parse.RefillEstimate
 import com.kutumbam.app.parse.RefillPredictor
+import com.kutumbam.app.vitals.Reading
+import com.kutumbam.app.vitals.VitalKind
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -25,4 +27,9 @@ fun MedicineEntity.refill(now: LocalDateTime): RefillEstimate? {
     val stock = stockCount ?: return null
     val end = durationDays?.let { LocalDate.parse(startDate).plusDays(it.toLong()) }
     return RefillPredictor.estimate(stock, countedAt(), doseSlots(), end, now)
+}
+
+fun Vital.toReading(): Reading? {
+    val k = runCatching { VitalKind.valueOf(kind) }.getOrNull() ?: return null
+    return Reading(id, LocalDate.parse(date), LocalTime.parse(time), k, value, value2, context)
 }

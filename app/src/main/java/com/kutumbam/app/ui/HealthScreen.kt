@@ -54,22 +54,30 @@ fun HealthScreen(vm: AppViewModel) {
     val child by vm.child.collectAsState()
     val selected by vm.healthTab.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
+    var addSelf by remember { mutableStateOf(false) }
     var showScan by remember { mutableStateOf(false) }
     var supplyEdit by remember { mutableStateOf<SupplyRow?>(null) }
     val capture = rememberCapture(vm::processImage)
     val member = ui.selected
 
-    val sections = listOfNotNull("Medicines", "Reports", if (child != null) "Vaccines" else null)
+    val sections = listOfNotNull("Medicines", "Readings", "Reports", if (child != null) "Vaccines" else null)
     val tab = selected.coerceIn(0, sections.lastIndex)
 
     Column(Modifier.fillMaxSize().background(K.Bg).statusBarsPadding()) {
-        Text("Health", fontFamily = K.Display, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = K.Ink, modifier = Modifier.padding(start = SIDE, top = 24.dp, bottom = 12.dp))
-        MemberPills(ui, vm) { showAdd = true }
+        Row(Modifier.fillMaxWidth().padding(start = SIDE, end = 12.dp, top = 24.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Health", Modifier.weight(1f), fontFamily = K.Display, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = K.Ink)
+            if (member != null) TextButton(onClick = { vm.openMedicalId() }) {
+                Icon(KIcons.Heart, null, Modifier.size(16.dp), tint = K.Teal)
+                Text("  Medical ID", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = K.Teal)
+            }
+        }
+        MemberPills(ui, vm, onAddSelf = { addSelf = true }) { showAdd = true }
         if (member != null) {
             SegmentedTabs(sections, tab) { vm.setHealthTab(it) }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = SIDE), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 when (sections[tab]) {
                     "Medicines" -> MedicinesTab(ui, member.name, onScan = { showScan = true }, onEdit = { supplyEdit = it })
+                    "Readings" -> ReadingsTab(vm, isChild = child != null)
                     "Reports" -> ReportsTab(ui, vm, onScan = { showScan = true })
                     else -> child?.let { VaccinesTab(it, vm) }
                 }
@@ -83,6 +91,7 @@ fun HealthScreen(vm: AppViewModel) {
     if (showScan) ScanDialog(member?.name, capture) { showScan = false }
     supplyEdit?.let { row -> SupplyDialog(row, onDismiss = { supplyEdit = null }, onSave = { supplyEdit = null; vm.setSupply(row.medicineId, it) }) }
     if (showAdd) AddMemberDialog(onDismiss = { showAdd = false }, onAdd = { n, r, d, s -> showAdd = false; vm.addMember(n, r, d, s) })
+    if (addSelf) AddMemberDialog(forSelf = true, onDismiss = { addSelf = false }, onAdd = { n, _, d, _ -> addSelf = false; vm.addMember(n, "Self", d, true, isSelf = true) })
 }
 
 @Composable

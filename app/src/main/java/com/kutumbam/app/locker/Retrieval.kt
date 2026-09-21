@@ -8,6 +8,8 @@ import com.kutumbam.app.parse.TestNames
 import com.kutumbam.app.parse.VaccineStatus
 import com.kutumbam.app.parse.describeRange
 import com.kutumbam.app.parse.formatNumber
+import com.kutumbam.app.vitals.VitalKind
+import com.kutumbam.app.vitals.VitalRules
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -51,7 +53,13 @@ object Retrieval {
     )
 
     private val LONG = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH)
+    private val SHORT = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)
     private val CLOCK = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
+
+    /** "Your" / "Amma's", for the start of a sentence. */
+    private fun poss(d: LockerData) = if (d.self) "Your" else "${d.person}'s"
+    private fun lowPoss(d: LockerData) = if (d.self) "your" else "${d.person}'s"
+    private fun who(d: LockerData) = if (d.self) "you" else d.person
 
     fun isAdviceQuestion(question: String) = ADVICE.containsMatchIn(question)
 
@@ -65,9 +73,10 @@ object Retrieval {
         labs(tokens, data)?.let { (f, text) -> facts += f; direct += text; topics += Topic.LAB }
         medicines(tokens, data)?.let { (f, text) -> facts += f; direct += text; topics += Topic.MEDICINE }
         vaccines(tokens, data)?.let { (f, text) -> facts += f; direct += text; topics += Topic.VACCINE }
+        readings(tokens, data)?.let { (f, text) -> facts += f; direct += text; topics += Topic.READING }
 
         val answer = if (facts.isEmpty()) {
-            "I couldn't find that in ${data.person}'s stored records. I can answer questions about the medicines, lab reports and vaccinations saved here."
+            "I couldn't find that in ${lowPoss(data)} stored records. I can answer questions about the medicines, lab reports and vaccinations saved here."
         } else direct.joinToString("\n\n")
         return Retrieved(facts, topics, answer, advice)
     }
@@ -100,7 +109,7 @@ object Retrieval {
             }
             val status = statusWords(latest)
             lines += buildString {
-                append("${data.person}'s latest ${latest.testName} was ${formatNumber(latest.value)}${latest.unit?.let { " $it" }.orEmpty()} on ${latest.date.format(LONG)}")
+                append("${poss(data)} latest ${latest.testName} was ${formatNumber(latest.value)}${latest.unit?.let { " $it" }.orEmpty()} on ${latest.date.format(LONG)}")
                 if (status != null && range != null) append(", $status ${if (latest.standardReference) "the standard reference range" else "the range printed on the report"} ($range)")
                 append(".")
                 if (ordered.size > 1) append(" Earlier: " + ordered.dropLast(1).joinToString(", ") { "${formatNumber(it.value)} (${it.date.format(SHORT)})" } + ".")
@@ -137,7 +146,7 @@ object Retrieval {
         if (byName.isEmpty() && !hint) return null
 
         var list = byName
-        var heading = "${data.person}'s medicines"
+        var heading = "${poss(data)} medicines"
         if (list.isEmpty()) {
             val window = when {
                 "morning" in tokens || "breakfast" in tokens -> 4..11 to "in the morning"
@@ -149,9 +158,9 @@ object Retrieval {
             list = data.medicines.filter { active(it, data.today) || it.sos }
             if (window != null) {
                 list = list.filter { m -> m.times.any { it.hour in window.first } }
-                heading = "${data.person} takes, ${window.second}"
-            } else if ("today" in tokens || "now" in tokens || "schedule" in tokens) heading = "${data.person}'s medicines for today"
-            if (list.isEmpty()) return emptyList<Fact>() to "There are no medicines stored for ${data.person} ${window?.second ?: "at that time"}."
+                heading = "${if (data.self) "You take" else "${data.person} takes"}, ${window.second}"
+            } else if ("today" in tokens || "now" in tokens || "schedule" in tokens) heading = "${poss(data)} medicines for today"
+            if (list.isEmpty()) return emptyList<Fact>() to "There are no medicines stored for ${who(data)} ${window?.second ?: "at that time"}."
         }
         list = list.take(12)
         val facts = list.map { Fact(medFactText(it, data.today), medShort(it), it.source) }
@@ -165,7 +174,7 @@ object Retrieval {
         val known = pool.filter { it.supply != null }.take(12)
         if (known.isEmpty()) {
             val src = (pool.firstOrNull() ?: data.medicines.first()).source
-            val text = "No tablet count is saved for ${data.person}'s ${if (named.isNotEmpty()) named.joinToString(" and ") { it.name } else "medicines"}, so I can't estimate when they will run out. " +
+            val text = "No tablet count is saved for ${lowPoss(data)} ${if (named.isNotEmpty()) named.joinToString(" and ") { it.name } else "medicines"}, so I can't estimate when they will run out. " +
                 "Tap the medicine under Medicine supply on the home screen to add the count."
             return listOf(Fact(text, text, src)) to text
         }
@@ -174,7 +183,7 @@ object Retrieval {
             val body = medName(m) + " " + s.phrase + (s.left?.let { "; $it" } ?: "") + ". Estimated from the schedule and the tablets counted on ${s.countedOn.format(LONG)}."
             Fact(body, medName(m) + " " + s.phrase + (s.left?.let { "; $it" } ?: "") + ".", m.source)
         }
-        val text = "Estimated supply for ${data.person}:\n" + facts.joinToString("\n") { "• ${it.short}" } + "\nThis is an estimate from the schedule; recount the tablets to correct it."
+        val text = "Estimated supply for ${who(data)}:\n" + facts.joinToString("\n") { "• ${it.short}" } + "\nThis is an estimate from the schedule; recount the tablets to correct it."
         return facts to text
     }
 
@@ -201,6 +210,43 @@ object Retrieval {
 
     private fun medShort(m: MedRecord) = medName(m) + ": " + timesText(m) + (mealWords(m.meal)?.let { ", $it" } ?: "") + "."
 
+    // ---- home readings
+
+    private val BP_WORDS = setOf("bp", "pressure")
+    private val WEIGHT_WORDS = setOf("weight", "weigh", "weighs", "weighed")
+    private val SUGAR_METER = setOf("glucometer", "meter", "home")
+
+    /** Blood pressure, weight or home sugar readings the person logged. Sugar only when the question points at the home meter. */
+    private fun readings(tokens: Set<String>, data: LockerData): Pair<List<Fact>, String>? {
+        if (data.readings.isEmpty()) return null
+        val kinds = buildList {
+            if (tokens.any { it in BP_WORDS }) add(VitalKind.BP)
+            if (tokens.any { it in WEIGHT_WORDS }) add(VitalKind.WEIGHT)
+            if ("sugar" in tokens && tokens.any { it in SUGAR_METER } || "glucometer" in tokens) add(VitalKind.SUGAR)
+        }
+        if (kinds.isEmpty()) return null
+        val facts = mutableListOf<Fact>()
+        val lines = mutableListOf<String>()
+        kinds.forEach { kind ->
+            val list = data.readings.filter { it.kind == kind }.sortedWith(compareBy({ it.date }, { it.time }, { it.id })).asReversed()
+            val latest = list.firstOrNull() ?: return@forEach
+            val src = Source(SourceKind.HOME_READING, "Home readings · ${latest.date.format(LONG)}")
+            val limit = VitalRules.limitText(kind, latest.context, data.limits)
+            val status = when (VitalRules.status(latest, data.limits)) {
+                VitalRules.Status.ABOVE -> ", above the limit you set ($limit)".let { if (data.self) it else it.replace("you set", "that was set") }
+                VitalRules.Status.WITHIN -> ", within the limit ${if (data.self) "you" else "that was"} set ($limit)"
+                VitalRules.Status.NO_LIMIT -> ""
+            }
+            val earlier = list.drop(1).take(3).joinToString(", ") { "${formatNumber(it.value)}${it.value2?.let { d -> "/" + formatNumber(d) } ?: ""} (${it.date.format(SHORT)})" }
+            val head = "${poss(data)} latest ${kind.label.lowercase()} reading was ${latest.text} on ${latest.date.format(LONG)} at ${latest.time.format(CLOCK)}$status."
+            val full = head + if (earlier.isNotEmpty()) " Before that: $earlier." else ""
+            facts += Fact(full, head, src)
+            lines += full
+        }
+        if (facts.isEmpty()) return null
+        return facts to (lines.joinToString("\n") + "\nPlease talk to a doctor about what these numbers mean.")
+    }
+
     // ---- vaccines
 
     private fun vaccines(tokens: Set<String>, data: LockerData): Pair<List<Fact>, String>? {
@@ -223,7 +269,7 @@ object Retrieval {
                 }
                 facts += Fact(t, t, src); lines += "• $t"
             }
-            return facts to (data.person + "'s vaccine records:\n" + lines.joinToString("\n"))
+            return facts to (poss(data) + " vaccine records:\n" + lines.joinToString("\n"))
         }
         val given = all.filter { it.first.status == VaccineStatus.DONE }
         val overdue = all.filter { it.first.status == VaccineStatus.OVERDUE }
@@ -237,12 +283,11 @@ object Retrieval {
             facts += Fact(t, t, src)
         }
         if (facts.isEmpty()) facts += Fact("Every dose on the schedule is recorded.", "Every dose on the schedule is recorded.", src)
-        return facts to (data.person + "'s vaccinations:\n" + facts.joinToString("\n") { "• ${it.short}" })
+        return facts to (poss(data) + " vaccinations:\n" + facts.joinToString("\n") { "• ${it.short}" })
     }
 
     // ---- helpers
 
-    private val SHORT = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)
     private val GENERIC_TEST_WORDS = setOf("total", "serum", "blood", "count", "level", "test")
 
     fun tokens(question: String, person: String): Set<String> {

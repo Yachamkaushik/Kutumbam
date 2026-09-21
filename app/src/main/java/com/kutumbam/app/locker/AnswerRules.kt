@@ -3,12 +3,12 @@ package com.kutumbam.app.locker
 /** Wording and safety checks around the model, kept as plain testable rules. */
 object AnswerRules {
 
-    fun refusal(person: String) =
-        "I can only tell you what's written in $person's stored records. For advice about starting, stopping or changing a medicine, " +
+    fun refusal(person: String, self: Boolean = false) =
+        "I can only tell you what's written in ${if (self) "your" else "$person's"} stored records. For advice about starting, stopping or changing a medicine, " +
             "or about what a result means, please ask the doctor or pharmacist."
 
-    fun systemPrompt(person: String, language: String, today: String) =
-        "You answer questions about $person's health records using ONLY the numbered records provided. Today is $today. Rules: " +
+    fun systemPrompt(person: String, language: String, today: String, self: Boolean = false) =
+        "You answer questions about ${if (self) "$person's own (the user's)" else "$person's"} health records${if (self) ", speaking to them as \"you\"," else ""} using ONLY the numbered records provided. Today is $today. Rules: " +
             "1) If the answer is not in the records, say you can't find it in the stored records. " +
             "2) Never give medical advice, never explain what a result means medically, never suggest starting, stopping or changing a medicine or dose. " +
             "3) Quote every number, date and time exactly as written in the records. " +

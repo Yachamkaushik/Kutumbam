@@ -42,6 +42,10 @@ photo / WhatsApp share  ->  ML Kit OCR  ->  rule-based parser  ->  confirm & cor
 | Pediatrician visit prep sheet (same, plus growth entries with trends and immunization due/overdue) and a Growth card on the child screen | Built, verified on emulator |
 | One-page health summary PDF (medicines, latest labs with printed ranges, child growth and vaccines, visit questions; saved to Downloads for iQOO Office Kit transfer, and shared via the share sheet) | Built, verified on emulator |
 | Bottom tabs: Today, Health (Medicines / Reports / Vaccines), Ask, Visit | Built, verified on emulator |
+| Yourself as a profile ("You"), set up first; reminders, visit sheet, Ask and the summary speak in the first person | Built, verified on emulator |
+| Medical ID (blood group, allergies, conditions, emergency contact with a Call button), also printed on the summary PDF | Built, verified on emulator |
+| Home readings (blood pressure, sugar, weight) with trend, history and limits you enter from your doctor; used in the visit sheet, the PDF and Ask | Built, verified on emulator |
+| Notes ("things I noticed") that go onto the visit sheet and the PDF; doses-taken check on your own visit sheet | Built, unit-tested; notes screen not clicked through on the emulator |
 | Share-in asks whose document it is | Built, verified on emulator |
 
 ## Requirements

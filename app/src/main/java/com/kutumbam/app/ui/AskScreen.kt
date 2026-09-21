@@ -68,14 +68,14 @@ fun AskScreen(vm: AppViewModel) {
             }
             Column {
                 Text("Ask the Locker", fontFamily = K.Display, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, color = K.Ink)
-                Text("Answers come only from ${ask.memberName}'s stored records", fontSize = 12.sp, color = K.Muted)
+                Text("Answers come only from ${if (ask.self) "your" else "${ask.memberName}'s"} stored records", fontSize = 12.sp, color = K.Muted)
             }
         }
 
         Column(Modifier.weight(1f).verticalScroll(scroll).padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (ask.items.isEmpty()) {
                 Text(
-                    "Ask about ${ask.memberName}'s medicines, lab reports or vaccinations, by typing or with the mic. " +
+                    "Ask about ${if (ask.self) "your" else "${ask.memberName}'s"} medicines, lab reports or vaccinations, by typing or with the mic. " +
                         "I can't give medical advice. For that, please ask the doctor.",
                     fontSize = 13.sp, lineHeight = 19.sp, color = K.Muted,
                 )
@@ -96,7 +96,7 @@ fun AskScreen(vm: AppViewModel) {
                 Column(Modifier.widthIn(max = 320.dp)) {
                     Column(Modifier.clip(RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)).background(K.Card).border(1.dp, K.Border, RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)).padding(horizontal = 14.dp, vertical = 10.dp)) {
                         Text(
-                            if (item.thinking && item.answer.isEmpty()) "Looking through ${ask.memberName}'s records…" else item.answer,
+                            if (item.thinking && item.answer.isEmpty()) "Looking through ${if (ask.self) "your" else "${ask.memberName}'s"} records…" else item.answer,
                             fontSize = 13.sp, lineHeight = 20.sp, color = if (item.thinking && item.answer.isEmpty()) K.Muted else K.Ink,
                         )
                         if (!item.thinking && item.answer.isNotEmpty()) {

@@ -10,8 +10,19 @@ import com.kutumbam.app.data.ConfirmedMedicine
 import com.kutumbam.app.data.FamilyMember
 import com.kutumbam.app.data.MedicineEntity
 import com.kutumbam.app.data.ReportSummary
+import com.kutumbam.app.data.HealthNote
 import com.kutumbam.app.data.Measurement
+import com.kutumbam.app.visit.Adherence
+import com.kutumbam.app.visit.NoteItem
+import com.kutumbam.app.visit.ScheduledMed
+import com.kutumbam.app.data.Vital
+import com.kutumbam.app.data.toReading
+import com.kutumbam.app.vitals.Limits
+import com.kutumbam.app.vitals.Reading
+import com.kutumbam.app.vitals.VitalKind
+import com.kutumbam.app.vitals.VitalRules
 import com.kutumbam.app.export.ExportFiles
+import com.kutumbam.app.export.MedicalIdInfo
 import com.kutumbam.app.export.SummaryBuilder
 import kotlinx.coroutines.flow.asSharedFlow
 import com.kutumbam.app.data.refill
@@ -85,7 +96,7 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-enum class Screen { HOME, HEALTH, CONFIRM, ELDER, REPORT, TREND, CHILD, ASK, DEV, VISIT }
+enum class Screen { HOME, HEALTH, CONFIRM, ELDER, REPORT, TREND, CHILD, ASK, DEV, VISIT, MEDICAL_ID }
 
 data class DoseRow(
     val medicineId: Long,
@@ -173,6 +184,7 @@ data class QaItem(
 
 data class AskUi(
     val memberName: String = "",
+    val self: Boolean = false,
     val items: List<QaItem> = emptyList(),
     val suggestions: List<String> = emptyList(),
     val listening: Boolean = false,
@@ -233,7 +245,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _pendingShare = MutableStateFlow<Uri?>(null)
     val pendingShare = _pendingShare.asStateFlow()
 
-    val home: StateFlow<HomeUi> = combine(repo.members(), selectedId) { members, sel ->
+    val home: StateFlow<HomeUi> = combine(repo.members(), selectedId) { list, sel ->
+        val members = list.sortedByDescending { it.isSelf }   // the person using the phone comes first
         members to (members.firstOrNull { it.id == sel } ?: members.firstOrNull())
     }.flatMapLatest { (members, member) ->
         if (member == null) flowOf(HomeUi(members))
@@ -332,6 +345,76 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openChild() { _screen.value = Screen.CHILD }
 
+    /** Home readings and the doctor-given limits for the selected person. */
+    val readings: StateFlow<List<Reading>> = home.map { it.selected }.distinctUntilChanged().flatMapLatest { m ->
+        if (m == null) flowOf(emptyList()) else repo.vitals(m.id).map { list -> list.mapNotNull { it.toReading() } }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val limits: StateFlow<Limits> = home.map { it.selected }.distinctUntilChanged().flatMapLatest { m ->
+        if (m == null) flowOf(emptyMap()) else repo.targets(m.id).map { list -> list.mapNotNull { t -> t.high?.let { t.key to it } }.toMap() }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    private fun saveReading(kind: VitalKind, value: Double, value2: Double?, context: String?, error: String?) {
+        val member = home.value.selected ?: return
+        if (error != null) { _message.value = error; return }
+        val now = java.time.LocalTime.now().withSecond(0).withNano(0)
+        viewModelScope.launch {
+            repo.addVital(Vital(memberId = member.id, date = LocalDate.now().toString(), time = now.toString(), kind = kind.name, value = value, value2 = value2, context = context))
+            _message.value = "Saved."
+        }
+    }
+
+    fun addBloodPressure(sys: Double?, dia: Double?) = saveReading(VitalKind.BP, sys ?: 0.0, dia, null, VitalRules.validateBp(sys, dia))
+    fun addSugar(value: Double?, context: String) = saveReading(VitalKind.SUGAR, value ?: 0.0, null, context, VitalRules.validateSugar(value))
+    fun addWeight(value: Double?) = saveReading(VitalKind.WEIGHT, value ?: 0.0, null, null, VitalRules.validateWeight(value))
+    fun deleteReading(id: Long) { viewModelScope.launch { repo.deleteVital(id) } }
+
+    /** Limits the person's own doctor gave. Blank clears a limit. */
+    fun setLimits(bpSystolic: Double?, bpDiastolic: Double?, fasting: Double?, afterMeal: Double?) {
+        val member = home.value.selected ?: return
+        viewModelScope.launch {
+            repo.setTarget(member.id, VitalRules.BP_SYSTOLIC, null, bpSystolic)
+            repo.setTarget(member.id, VitalRules.BP_DIASTOLIC, null, bpDiastolic)
+            repo.setTarget(member.id, VitalRules.SUGAR_FASTING, null, fasting)
+            repo.setTarget(member.id, VitalRules.SUGAR_AFTER, null, afterMeal)
+            _message.value = "Saved."
+        }
+    }
+
+    val notes: StateFlow<List<HealthNote>> = home.map { it.selected }.distinctUntilChanged().flatMapLatest { m ->
+        if (m == null) flowOf(emptyList()) else repo.notes(m.id)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun addNote(text: String) {
+        val member = home.value.selected ?: return
+        val clean = text.trim()
+        if (clean.isEmpty()) return
+        viewModelScope.launch { repo.addNote(member.id, LocalDate.now(), clean.take(200)); _message.value = "Noted."; refreshVisit(member) }
+    }
+
+    fun deleteNote(id: Long) {
+        val member = home.value.selected ?: return
+        viewModelScope.launch { repo.deleteNote(id); refreshVisit(member) }
+    }
+
+    private suspend fun refreshVisit(member: FamilyMember) { if (_screen.value == Screen.VISIT) _visit.value = VisitPrep.build(prepInput(member)) }
+
+    fun openReadings() { _healthTab.value = 1; _screen.value = Screen.HEALTH }
+
+    fun openMedicalId() { _screen.value = Screen.MEDICAL_ID }
+
+    fun saveMedicalId(info: MedicalIdInfo) {
+        val member = home.value.selected ?: return
+        viewModelScope.launch {
+            repo.updateMember(member.copy(
+                bloodGroup = info.bloodGroup?.trim()?.ifEmpty { null }, allergies = info.allergies?.trim()?.ifEmpty { null },
+                conditions = info.conditions?.trim()?.ifEmpty { null }, emergencyName = info.emergencyName?.trim()?.ifEmpty { null },
+                emergencyPhone = info.emergencyPhone?.trim()?.ifEmpty { null },
+            ))
+            _message.value = "Saved."
+        }
+    }
+
     /** Which section of the Health tab is showing: 0 medicines, 1 reports, 2 vaccines. */
     private val _healthTab = MutableStateFlow(0)
     val healthTab = _healthTab.asStateFlow()
@@ -388,7 +471,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             person = member.name, isChild = isChild, dob = member.dateOfBirth?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
             today = LocalDate.now(), medicines = data.medicines, labs = data.labs, immunization = if (isChild) data.immunization else null,
             growth = repo.measurementsNow(member.id).map { GrowthPoint(LocalDate.parse(it.date), it.weightKg, it.heightCm, it.headCm) },
+            self = member.isSelf,
+            readings = repo.vitalsNow(member.id).mapNotNull { it.toReading() },
+            limits = repo.targetsNow(member.id).mapNotNull { t -> t.high?.let { t.key to it } }.toMap(),
+            notes = repo.notesNow(member.id).map { NoteItem(LocalDate.parse(it.date), it.text) },
+            adherence = if (member.isSelf) adherenceFor(member) else null,
         )
+    }
+
+    private suspend fun adherenceFor(member: FamilyMember): Adherence {
+        val today = LocalDate.now()
+        val meds = repo.medicinesNow(member.id).filter { it.frequencyCode != FrequencyCode.SOS.name }
+        val scheduled = meds.map { ScheduledMed(it.id, LocalDate.parse(it.startDate), it.durationDays, it.timesCsv.split(",").count { t -> t.isNotBlank() }) }
+        val ids = meds.map { it.id }.toSet()
+        val log = repo.takenSince(today.minusDays(Adherence.WINDOW_DAYS.toLong())).filter { it.medicineId in ids }.map { it.medicineId to LocalDate.parse(it.date) }
+        return Adherence.compute(scheduled, log, today)
     }
 
     private val _pdfReady = kotlinx.coroutines.flow.MutableSharedFlow<File>(extraBufferCapacity = 1)
@@ -402,7 +499,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _busy.value = "Making the summary…"
             try {
                 val input = prepInput(member)
-                val content = SummaryBuilder.build(input, VisitPrep.build(input))
+                val content = SummaryBuilder.build(input, VisitPrep.build(input), MedicalIdInfo(member.bloodGroup, member.allergies, member.conditions, member.emergencyName, member.emergencyPhone))
                 val name = "Kutumbam-${member.name.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-')}-${input.today}.pdf"
                 val app = getApplication<Application>()
                 val file = withContext(Dispatchers.IO) { ExportFiles.createSummary(app, content, name) }
@@ -444,15 +541,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun openAsk(initialQuestion: String? = null) {
         val member = home.value.selected ?: run { _message.value = "Add a family member first."; return }
         askReturn = _screen.value.takeIf { it in setOf(Screen.TREND, Screen.CHILD, Screen.REPORT) } ?: Screen.HOME
-        if (askMemberId != member.id) { askMemberId = member.id; _ask.value = AskUi(memberName = member.name) }
+        if (askMemberId != member.id) { askMemberId = member.id; _ask.value = AskUi(memberName = member.name, self = member.isSelf) }
         _screen.value = Screen.ASK
         viewModelScope.launch {
             val data = buildLockerData(member)
             val tips = buildList {
-                if (data.medicines.isNotEmpty()) add("What medicines does ${member.name} take?")
-                data.labs.lastOrNull()?.let { add("What was ${member.name}'s latest ${it.testName}?") }
-                if (data.immunization != null) add("Which vaccines are due for ${member.name}?")
-                if (data.medicines.isNotEmpty()) add("What does ${member.name} take in the morning?")
+                val n = member.name
+                val me = member.isSelf
+                if (data.medicines.isNotEmpty()) add(if (me) "What medicines do I take?" else "What medicines does $n take?")
+                data.labs.lastOrNull()?.let { add(if (me) "What was my latest ${it.testName}?" else "What was $n's latest ${it.testName}?") }
+                if (data.readings.any { it.kind == VitalKind.BP }) add(if (me) "What was my last BP?" else "What was $n's last BP?")
+                if (data.immunization != null) add("Which vaccines are due for $n?")
+                if (data.medicines.isNotEmpty()) add(if (me) "What do I take in the morning?" else "What does $n take in the morning?")
             }
             _ask.update { it.copy(memberName = member.name, suggestions = tips) }
         }
@@ -471,7 +571,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }
             val data = buildLockerData(member)
             val retrieved = Retrieval.retrieve(q, data)
-            if (retrieved.advice) { finish(AnswerRules.refusal(member.name), emptyList(), "Not medical advice"); return@launch }
+            if (retrieved.advice) { finish(AnswerRules.refusal(member.name, member.isSelf), emptyList(), "Not medical advice"); return@launch }
             if (retrieved.facts.isEmpty()) { finish(retrieved.directAnswer, emptyList(), "Nothing matching in the stored records"); return@launch }
 
             ensureModelLoaded()
@@ -481,7 +581,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val today = data.today.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH))
             val language = AppLanguage.fromCode(member.preferredLanguage).voiceName
             try {
-                val result = kApp.llm.generate(AnswerRules.systemPrompt(member.name, language, today), AnswerRules.userPrompt(retrieved, q)) { partial ->
+                val result = kApp.llm.generate(AnswerRules.systemPrompt(member.name, language, today, member.isSelf), AnswerRules.userPrompt(retrieved, q)) { partial ->
                     _ask.update { a -> a.copy(items = a.items.map { if (it.id == id) it.copy(answer = partial) else it }) }
                 }
                 val text = result.text.trim()
@@ -553,7 +653,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val dob = LocalDate.parse(member.dateOfBirth)
             ImmunizationEngine.plan(dob, repo.immunizationsNow(member.id).associate { it.scheduleId to LocalDate.parse(it.administeredDate) }, today)
         } else null
-        return LockerData(member.name, today, meds, labs, plan)
+        return LockerData(
+            member.name, today, meds, labs, plan, self = member.isSelf,
+            readings = repo.vitalsNow(member.id).mapNotNull { it.toReading() },
+            limits = repo.targetsNow(member.id).mapNotNull { t -> t.high?.let { t.key to it } }.toMap(),
+        )
     }
 
     fun openReport(documentId: Long) { reportDoc.value = documentId; _screen.value = Screen.REPORT }
@@ -573,6 +677,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             Screen.TREND -> _screen.value = if (reportDoc.value != null) Screen.REPORT else Screen.HOME
             Screen.CHILD -> _screen.value = Screen.HOME
             Screen.VISIT -> _screen.value = visitReturn
+            Screen.MEDICAL_ID -> _screen.value = Screen.HEALTH
             Screen.ASK -> { stopListening(); kApp.speaker.stop(); _screen.value = askReturn }
             else -> _screen.value = Screen.HOME
         }
@@ -669,8 +774,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun clearMessage() { _message.value = null }
     fun say(text: String) { _message.value = text }
 
-    fun addMember(name: String, relation: String, dob: String?, selfOperates: Boolean) = viewModelScope.launch {
-        val id = repo.addMember(FamilyMember(name = name.trim(), relation = relation, dateOfBirth = dob, selfOperatesPhone = selfOperates))
+    fun addMember(name: String, relation: String, dob: String?, selfOperates: Boolean, isSelf: Boolean = false) = viewModelScope.launch {
+        if (isSelf && repo.allMembers().any { it.isSelf }) { _message.value = "You already have a profile."; return@launch }
+        val id = repo.addMember(FamilyMember(name = name.trim(), relation = relation, dateOfBirth = dob, selfOperatesPhone = selfOperates, isSelf = isSelf))
         selectedId.value = id
     }
 

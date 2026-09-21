@@ -5,7 +5,7 @@ import com.kutumbam.app.parse.MilestoneState
 import java.time.LocalDate
 import java.time.LocalTime
 
-enum class SourceKind { PRESCRIPTION, LAB_REPORT, VACCINATION }
+enum class SourceKind { PRESCRIPTION, LAB_REPORT, VACCINATION, HOME_READING }
 
 /** Where an answer came from, so the person can go and check it. */
 data class Source(val kind: SourceKind, val label: String, val documentId: Long? = null)
@@ -46,12 +46,16 @@ data class LockerData(
     val medicines: List<MedRecord>,
     val labs: List<LabRecord>,
     val immunization: List<MilestoneState>?,
+    /** True when the records belong to the person using the phone, so answers speak to them as "you". */
+    val self: Boolean = false,
+    val readings: List<com.kutumbam.app.vitals.Reading> = emptyList(),
+    val limits: com.kutumbam.app.vitals.Limits = emptyMap(),
 )
 
 /** One retrievable statement. [text] is complete (for the model and grounding); [short] is what the person reads without the model. */
 data class Fact(val text: String, val short: String, val source: Source)
 
-enum class Topic { MEDICINE, LAB, VACCINE }
+enum class Topic { MEDICINE, LAB, VACCINE, READING }
 
 data class Retrieved(
     val facts: List<Fact>,

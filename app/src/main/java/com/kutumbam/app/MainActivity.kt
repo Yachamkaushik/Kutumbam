@@ -48,6 +48,7 @@ import com.kutumbam.app.ui.TrendScreen
 import com.kutumbam.app.ui.HealthScreen
 import com.kutumbam.app.ui.HomeScreen
 import com.kutumbam.app.ui.KBottomBar
+import com.kutumbam.app.ui.MedicalIdScreen
 import com.kutumbam.app.ui.TAB_SCREENS
 import com.kutumbam.app.ui.Screen
 import com.kutumbam.app.ui.theme.K
@@ -103,6 +104,7 @@ class MainActivity : ComponentActivity() {
                             Screen.CHILD -> ChildScreen(vm)
                             Screen.ASK -> AskScreen(vm)
                             Screen.VISIT -> VisitScreen(vm)
+                            Screen.MEDICAL_ID -> MedicalIdScreen(vm)
                             Screen.DEV -> DevScreen { vm.show(Screen.HOME) }
                         }
                         message?.let { text ->

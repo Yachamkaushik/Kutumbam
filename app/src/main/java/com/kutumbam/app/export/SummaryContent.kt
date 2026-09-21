@@ -15,6 +15,14 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+/** What the person has told the app about themselves, for the summary and the Medical ID screen. Blank means not filled in. */
+data class MedicalIdInfo(
+    val bloodGroup: String? = null, val allergies: String? = null, val conditions: String? = null,
+    val emergencyName: String? = null, val emergencyPhone: String? = null,
+) {
+    val isEmpty get() = listOf(bloodGroup, allergies, conditions, emergencyName, emergencyPhone).all { it.isNullOrBlank() }
+}
+
 data class SummarySection(val heading: String, val lines: List<String>)
 
 /** What goes on the one-page summary, as plain text, so the layout code only has to draw it. */
@@ -32,14 +40,25 @@ object SummaryBuilder {
     const val MAX_LABS = 10
     const val MAX_QUESTIONS = 5
 
-    fun build(i: PrepInput, sheet: PrepSheet): SummaryContent {
+    fun build(i: PrepInput, sheet: PrepSheet, id: MedicalIdInfo? = null): SummaryContent {
         val sections = mutableListOf<SummarySection>()
+        val idLines = listOfNotNull(
+            id?.bloodGroup?.takeIf { it.isNotBlank() }?.let { "Blood group: $it" },
+            id?.allergies?.takeIf { it.isNotBlank() }?.let { "Allergies: $it" },
+            id?.conditions?.takeIf { it.isNotBlank() }?.let { "Conditions: $it" },
+            id?.emergencyName?.takeIf { it.isNotBlank() }?.let { n -> "Emergency contact: $n${id.emergencyPhone?.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()}" }
+                ?: id?.emergencyPhone?.takeIf { it.isNotBlank() }?.let { "Emergency contact: $it" },
+        )
+        if (idLines.isNotEmpty()) sections += SummarySection("Medical ID", idLines)
         sections += SummarySection("Medicines now", medicines(i))
         labs(i)?.let { sections += it }
+        com.kutumbam.app.vitals.VitalSummary.lines(i.readings, i.limits, i.today).takeIf { it.isNotEmpty() }?.let { sections += SummarySection("Home readings", it) }
         if (i.isChild) {
             growth(i)?.let { sections += it }
             vaccines(i)?.let { sections += it }
         }
+        val recentNotes = i.notes.filter { !it.date.isBefore(i.today.minusDays(45)) }.sortedBy { it.date }
+        if (recentNotes.isNotEmpty()) sections += SummarySection("Noticed since the last visit", recentNotes.take(6).map { "${it.date.format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH))}: ${it.text}" })
         val questions = sheet.sections.flatMap { it.items }.map { it.text }
         if (questions.isNotEmpty()) {
             val shown = questions.take(MAX_QUESTIONS)
@@ -52,7 +71,11 @@ object SummaryBuilder {
             subtitle = listOfNotNull(age, "prepared ${i.today.format(LONG)}").joinToString(" · "),
             sections = sections,
             footer = listOf(
-                "Allergies: ______________________     Blood group: ________     Doctor's notes: ______________________",
+                listOfNotNull(
+                    "Allergies: ______________________".takeIf { id?.allergies.isNullOrBlank() },
+                    "Blood group: ________".takeIf { id?.bloodGroup.isNullOrBlank() },
+                    "Doctor's notes: ______________________",
+                ).joinToString("     "),
                 "Made by Kutumbam from records saved on this phone. Every value is copied from a prescription or report. Not medical advice.",
             ),
         )

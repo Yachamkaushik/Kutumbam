@@ -142,4 +142,29 @@ class LockerTest {
         val none = Retrieval.retrieve("when will the amlodipine run out", withSupply)
         assertTrue(none.directAnswer.contains("No tablet count is saved"))
     }
+
+    @Test fun answersSpeakToTheUserWhenTheRecordsAreTheirOwn() {
+        val mine = data.copy(person = "Kaushik", self = true)
+        val r = Retrieval.retrieve("what was my last sugar reading", mine)
+        assertTrue(r.directAnswer.startsWith("Your latest Fasting Blood Glucose was 118 mg/dL"))
+        assertTrue(Retrieval.retrieve("what does he take in the morning", mine).directAnswer.startsWith("You take, in the morning"))
+        assertTrue(Retrieval.retrieve("capital of France", mine).directAnswer.contains("in your stored records"))
+        assertTrue(com.kutumbam.app.locker.AnswerRules.refusal("Kaushik", self = true).contains("your stored records"))
+    }
+
+    @Test fun askAnswersBloodPressureFromHomeReadingsWithTheLimitTheUserSet() {
+        val r = { d: Int, s: Double, dia: Double -> com.kutumbam.app.vitals.Reading(d.toLong(), LocalDate.of(2026, 9, d), LocalTime.of(8, 5), com.kutumbam.app.vitals.VitalKind.BP, s, dia, null) }
+        val mine = data.copy(person = "Kaushik", self = true, readings = listOf(r(19, 132.0, 84.0), r(20, 138.0, 86.0)),
+            limits = mapOf(com.kutumbam.app.vitals.VitalRules.BP_SYSTOLIC to 130.0, com.kutumbam.app.vitals.VitalRules.BP_DIASTOLIC to 80.0))
+        val a = Retrieval.retrieve("what was my last BP", mine)
+        assertTrue(Topic.READING in a.topics)
+        assertTrue(a.directAnswer.startsWith("Your latest blood pressure reading was 138/86 mmHg on 20 Sep 2026 at 8:05 AM, above the limit you set (130/80 mmHg). Before that: 132/84 (19 Sep)."))
+        assertTrue(a.directAnswer.contains("talk to a doctor"))
+        assertEquals(SourceKind.HOME_READING, a.sources.single().kind)
+        // No limit set: no judgement in the answer.
+        val plain = Retrieval.retrieve("what is my bp", mine.copy(limits = emptyMap()))
+        assertFalse(plain.directAnswer.contains("limit"))
+        // Sugar only answers from the home meter when asked about it; plain "sugar" still means the lab test.
+        assertFalse(Retrieval.retrieve("what was my last sugar reading", mine).topics.contains(Topic.READING))
+    }
 }

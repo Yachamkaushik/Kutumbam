@@ -55,4 +55,15 @@ class SummaryTest {
         assertTrue(c.footer.last().contains("Not medical advice"))
         assertTrue(c.sections.last().heading == "Questions for this visit")
     }
+
+    @Test fun medicalIdFillsTheSummaryAndTheBlankFields() {
+        val id = com.kutumbam.app.export.MedicalIdInfo(bloodGroup = "O+", allergies = "Penicillin", emergencyName = "Ravi", emergencyPhone = "98480 12345")
+        val c = SummaryBuilder.build(input, VisitPrep.build(input), id)
+        assertEquals("Medical ID", c.sections.first().heading)
+        assertEquals(listOf("Blood group: O+", "Allergies: Penicillin", "Emergency contact: Ravi · 98480 12345"), c.sections.first().lines)
+        assertEquals("Doctor's notes: ______________________", c.footer[0])   // nothing left to write in except notes
+        val blank = SummaryBuilder.build(input, VisitPrep.build(input))
+        assertTrue(blank.sections.none { it.heading == "Medical ID" })
+        assertTrue(blank.footer[0].contains("Allergies: ____") && blank.footer[0].contains("Blood group: ____"))
+    }
 }

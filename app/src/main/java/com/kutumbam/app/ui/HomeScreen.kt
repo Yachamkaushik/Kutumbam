@@ -71,6 +71,7 @@ fun HomeScreen(vm: AppViewModel) {
     val ui by vm.home.collectAsState()
     val child by vm.child.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
+    var addSelf by remember { mutableStateOf(false) }
     var showScan by remember { mutableStateOf(false) }
     val capture = rememberCapture(vm::processImage)
     val context = LocalContext.current
@@ -91,16 +92,16 @@ fun HomeScreen(vm: AppViewModel) {
             }
             TextButton(onClick = { vm.show(Screen.DEV) }) { Text("AI setup", fontSize = 12.sp, color = K.Muted) }
         }
-        MemberPills(ui, vm) { showAdd = true }
+        MemberPills(ui, vm, onAddSelf = { addSelf = true }) { showAdd = true }
 
         if (member == null) {
-            Welcome { showAdd = true }
+            Welcome(onSetUpSelf = { addSelf = true }, onAdd = { showAdd = true })
         } else {
             val taken = ui.doses.count { it.taken }
             Column(Modifier.padding(horizontal = SIDE).padding(top = 20.dp)) {
                 Text("Today", fontFamily = K.Display, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = K.Ink)
                 Text(
-                    "${member.name} · ${LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.ENGLISH))}",
+                    "${if (member.isSelf) "You" else member.name} · ${LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.ENGLISH))}",
                     fontSize = 13.sp, color = K.Muted, modifier = Modifier.padding(top = 2.dp),
                 )
                 if (ui.doses.isNotEmpty()) {
@@ -122,11 +123,11 @@ fun HomeScreen(vm: AppViewModel) {
                     Text("  Scan document", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
                 OutlinedButton(
-                    onClick = { vm.show(Screen.ELDER) }, modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(14.dp),
+                    onClick = { if (member.isSelf) vm.openReadings() else vm.show(Screen.ELDER) }, modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.dp, K.Border), colors = ButtonDefaults.outlinedButtonColors(contentColor = K.Ink),
                 ) {
-                    Icon(KIcons.Volume, null, Modifier.size(18.dp), tint = K.Teal)
-                    Text("  Elder mode", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Icon(if (member.isSelf) KIcons.Plus else KIcons.Volume, null, Modifier.size(18.dp), tint = K.Teal)
+                    Text(if (member.isSelf) "  Log a reading" else "  Elder mode", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
 
@@ -136,7 +137,7 @@ fun HomeScreen(vm: AppViewModel) {
             Column(Modifier.padding(horizontal = SIDE).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (ui.doses.isEmpty()) {
                     Spacer(Modifier.height(8.dp))
-                    Card { Text("Nothing scheduled today. Scan a prescription to add ${member.name}'s medicines.", fontSize = 13.sp, color = K.Muted, lineHeight = 20.sp, modifier = Modifier.padding(16.dp)) }
+                    Card { Text("Nothing scheduled today. Scan a prescription to add ${if (member.isSelf) "your" else "${member.name}'s"} medicines.", fontSize = 13.sp, color = K.Muted, lineHeight = 20.sp, modifier = Modifier.padding(16.dp)) }
                 } else {
                     doseGroups(ui.doses).forEach { (title, rows) -> DoseGroup(title, rows) { vm.toggleDose(it) } }
                 }
@@ -147,6 +148,7 @@ fun HomeScreen(vm: AppViewModel) {
 
     if (showScan) ScanDialog(member?.name, capture) { showScan = false }
     if (showAdd) AddMemberDialog(onDismiss = { showAdd = false }, onAdd = { n, r, d, s -> showAdd = false; vm.addMember(n, r, d, s) })
+    if (addSelf) AddMemberDialog(forSelf = true, onDismiss = { addSelf = false }, onAdd = { n, _, d, _ -> addSelf = false; vm.addMember(n, "Self", d, true, isSelf = true) })
 }
 
 // ---- shared pieces (also used by the Health tab)
@@ -163,16 +165,22 @@ internal fun ScanDialog(name: String?, capture: CaptureActions, onDismiss: () ->
 }
 
 @Composable
-internal fun MemberPills(ui: HomeUi, vm: AppViewModel, onAdd: () -> Unit) {
+internal fun MemberPills(ui: HomeUi, vm: AppViewModel, onAddSelf: () -> Unit = {}, onAdd: () -> Unit) {
     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = SIDE), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        ui.members.forEach { m -> Pill(m.name, selected = m.id == ui.selected?.id) { vm.select(m.id) } }
+        ui.members.forEach { m -> Pill(if (m.isSelf) "You" else m.name, selected = m.id == ui.selected?.id) { vm.select(m.id) } }
+        if (ui.members.isNotEmpty() && ui.members.none { it.isSelf }) {
+            Box(
+                Modifier.clip(RoundedCornerShape(20.dp)).border(1.dp, K.Border, RoundedCornerShape(20.dp)).clickable(onClick = onAddSelf).padding(horizontal = 14.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text("Set up yourself", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = K.Muted) }
+        }
         Box(
             Modifier.clip(RoundedCornerShape(20.dp)).border(1.dp, K.Teal, RoundedCornerShape(20.dp)).clickable(onClick = onAdd).padding(horizontal = 14.dp, vertical = 8.dp),
             contentAlignment = Alignment.Center,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(KIcons.Plus, null, Modifier.size(16.dp), tint = K.Teal)
-                Text(if (ui.members.isEmpty()) " Add family member" else " Add", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = K.Teal)
+                Text(" Add family member", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = K.Teal)
             }
         }
     }
@@ -223,13 +231,14 @@ internal fun EmptyState(title: String, body: String, action: String? = null, onA
 }
 
 @Composable
-private fun Welcome(onAdd: () -> Unit) {
-    Column(Modifier.padding(horizontal = SIDE).padding(top = 28.dp)) {
+private fun Welcome(onSetUpSelf: () -> Unit, onAdd: () -> Unit) {
+    Column(Modifier.padding(horizontal = SIDE).padding(top = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         EmptyState(
             "Welcome to Kutumbam",
-            "Add a family member to begin. Each person gets their own medicines, reports and reminders, all stored only on this phone.",
-            "Add a family member", onAdd,
+            "Start with yourself. You and each family member get your own medicines, reports, readings and reminders, all stored only on this phone.",
+            "Set up your profile", onSetUpSelf,
         )
+        TextButton(onClick = onAdd, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Or add a family member first", fontSize = 13.sp, color = K.Muted) }
     }
 }
 
@@ -322,26 +331,26 @@ private fun DoseLine(row: DoseRow, onToggle: () -> Unit) {
 private val RELATIONS = listOf("Mother", "Father", "Spouse", "Child", "Grandparent", "Other")
 
 @Composable
-internal fun AddMemberDialog(onDismiss: () -> Unit, onAdd: (String, String, String?, Boolean) -> Unit) {
+internal fun AddMemberDialog(forSelf: Boolean = false, onDismiss: () -> Unit, onAdd: (String, String, String?, Boolean) -> Unit) {
     var name by remember { mutableStateOf("") }
     var relation by remember { mutableStateOf(RELATIONS[0]) }
     var dob by remember { mutableStateOf("") }
     var selfOperates by remember { mutableStateOf(false) }
     val dobDate = runCatching { LocalDate.parse(dob) }.getOrNull()
-    val needsDob = relation == "Child"
+    val needsDob = !forSelf && relation == "Child"
     val dobOk = if (needsDob) dobDate != null else (dob.isEmpty() || dobDate != null)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add family member") },
+        title = { Text(if (forSelf) "About you" else "Add family member") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Name (e.g. Amma)") }, singleLine = true)
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedTextField(name, { name = it }, label = { Text(if (forSelf) "Your name" else "Name (e.g. Amma)") }, singleLine = true)
+                if (!forSelf) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     RELATIONS.forEach { r -> FilterChip(selected = relation == r, onClick = { relation = r }, label = { Text(r) }) }
                 }
                 OutlinedTextField(dob, { dob = it }, label = { Text(if (needsDob) "Date of birth (YYYY-MM-DD), needed for vaccines" else "Date of birth (YYYY-MM-DD)") }, singleLine = true, isError = !dobOk, keyboardOptions = KeyboardOptions.Default)
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!forSelf) Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Uses the phone themselves", Modifier.weight(1f), fontSize = 14.sp)
                     Switch(selfOperates, { selfOperates = it })
                 }

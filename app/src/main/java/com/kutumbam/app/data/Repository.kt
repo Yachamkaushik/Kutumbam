@@ -39,7 +39,7 @@ data class ConfirmedVaccine(val scheduleId: String, val date: LocalDate)
 class Repository(context: Context) {
     private val dao = Room.databaseBuilder(context, AppDb::class.java, "kutumbam.db")
         // Pre-release: the schema is still moving, so a version bump rebuilds the local database.
-        .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+        .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
         .fallbackToDestructiveMigration(true).build().dao()
 
     fun members(): Flow<List<FamilyMember>> = dao.members()
@@ -50,6 +50,24 @@ class Repository(context: Context) {
     suspend fun medicinesNow(memberId: Long) = dao.medicinesNow(memberId)
     suspend fun labsNow(memberId: Long) = dao.labsNow(memberId)
     suspend fun documentsNow(memberId: Long) = dao.documentsNow(memberId)
+    suspend fun updateMember(m: FamilyMember) = dao.updateMember(m)
+
+    fun vitals(memberId: Long) = dao.vitals(memberId)
+    suspend fun vitalsNow(memberId: Long) = dao.vitalsNow(memberId)
+    suspend fun addVital(v: Vital) = dao.insertVital(v)
+    suspend fun deleteVital(id: Long) = dao.deleteVital(id)
+    fun targets(memberId: Long) = dao.targets(memberId)
+    suspend fun targetsNow(memberId: Long) = dao.targetsNow(memberId)
+    /** A null [high] and [low] clears the limit. */
+    suspend fun setTarget(memberId: Long, key: String, low: Double?, high: Double?) {
+        if (low == null && high == null) dao.deleteTarget(memberId, key) else dao.upsertTarget(VitalTarget(memberId = memberId, key = key, low = low, high = high))
+    }
+    fun notes(memberId: Long) = dao.notes(memberId)
+    suspend fun notesNow(memberId: Long) = dao.notesNow(memberId)
+    suspend fun addNote(memberId: Long, date: LocalDate, text: String) = dao.insertNote(HealthNote(memberId = memberId, date = date.toString(), text = text))
+    suspend fun deleteNote(id: Long) = dao.deleteNote(id)
+    suspend fun takenSince(date: LocalDate) = dao.takenSince(date.toString())
+
     fun measurements(memberId: Long) = dao.measurements(memberId)
     suspend fun measurementsNow(memberId: Long) = dao.measurementsNow(memberId)
     suspend fun addMeasurement(memberId: Long, date: LocalDate, weightKg: Double?, heightCm: Double?, headCm: Double?) =
@@ -125,6 +143,17 @@ class Repository(context: Context) {
     }
 
     private companion object {
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE member ADD COLUMN isSelf INTEGER NOT NULL DEFAULT 0")
+                listOf("bloodGroup", "allergies", "conditions", "emergencyName", "emergencyPhone").forEach { db.execSQL("ALTER TABLE member ADD COLUMN $it TEXT") }
+                db.execSQL("CREATE TABLE IF NOT EXISTS `vital` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `memberId` INTEGER NOT NULL, `date` TEXT NOT NULL, `time` TEXT NOT NULL, `kind` TEXT NOT NULL, `value` REAL NOT NULL, `value2` REAL, `context` TEXT)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `vital_target` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `memberId` INTEGER NOT NULL, `key` TEXT NOT NULL, `low` REAL, `high` REAL)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_vital_target_memberId_key` ON `vital_target` (`memberId`, `key`)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS `health_note` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `memberId` INTEGER NOT NULL, `date` TEXT NOT NULL, `text` TEXT NOT NULL)")
+            }
+        }
+
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE TABLE IF NOT EXISTS `measurement` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `memberId` INTEGER NOT NULL, `date` TEXT NOT NULL, `weightKg` REAL, `heightCm` REAL, `headCm` REAL)")

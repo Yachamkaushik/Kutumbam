@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,6 +64,7 @@ fun VisitScreen(vm: AppViewModel) {
         Text(s.subtitle, fontSize = 12.sp, lineHeight = 17.sp, color = K.Muted, modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 12.dp))
 
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            NotesCard(vm)
             var n = 0
             s.sections.forEach { section ->
                 Text(
@@ -108,5 +110,38 @@ fun VisitScreen(vm: AppViewModel) {
                 Text("  Share list", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
         }
+    }
+}
+
+/** A short list of things noticed, in the person's own words, that then appears on the sheet. */
+@Composable
+private fun NotesCard(vm: AppViewModel) {
+    val notes by vm.notes.collectAsState()
+    val ui by vm.home.collectAsState()
+    var adding by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val self = ui.selected?.isSelf == true
+    Card {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (self) "Things I've noticed" else "Things noticed", Modifier.weight(1f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = K.Ink)
+                androidx.compose.material3.TextButton(onClick = { adding = true }) { Text("+ Add a note", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+            }
+            if (notes.isEmpty()) Text("Jot down anything to mention to the doctor, like a new symptom or a question. It goes on the list below.", fontSize = 12.sp, lineHeight = 18.sp, color = K.Muted)
+            notes.take(5).forEach { n ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(java.time.LocalDate.parse(n.date).format(java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.ENGLISH)) + " · " + n.text, Modifier.weight(1f), fontSize = 13.sp, lineHeight = 18.sp, color = K.Ink)
+                    Box(Modifier.size(36.dp).clip(CircleShape).clickable { vm.deleteNote(n.id) }, contentAlignment = Alignment.Center) { Icon(KIcons.Close, "Delete", Modifier.size(14.dp), tint = K.Muted) }
+                }
+            }
+        }
+    }
+    if (adding) {
+        var text by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { adding = false }, title = { Text("Add a note") },
+            text = { androidx.compose.material3.OutlinedTextField(text, { text = it.take(200) }, label = { Text("What did you notice?") }, minLines = 2, maxLines = 4) },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { vm.addNote(text); adding = false }, enabled = text.isNotBlank()) { Text("Save") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { adding = false }) { Text("Cancel") } },
+        )
     }
 }

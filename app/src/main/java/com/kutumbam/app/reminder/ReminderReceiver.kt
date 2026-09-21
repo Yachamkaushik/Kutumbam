@@ -60,7 +60,7 @@ class ReminderReceiver : BroadcastReceiver() {
         if (alreadyTaken) return
         val member = repo.member(med.memberId)
         val code = ReminderScheduler.requestCode(med.id, time)
-        notify(context, code, "Time for ${member?.name ?: "your"}${if (member != null) "'s" else ""} medicine", describe(med, time), Intent(context, ReminderReceiver::class.java)
+        notify(context, code, if (member == null || member.isSelf) "Time for your medicine" else "Time for ${member.name}'s medicine", describe(med, time), Intent(context, ReminderReceiver::class.java)
             .setAction(ReminderScheduler.ACTION_TAKEN).putExtra(ReminderScheduler.EXTRA_MEDICINE, med.id).putExtra(ReminderScheduler.EXTRA_TIME, time.toString()))
     }
 
@@ -85,7 +85,7 @@ class ReminderReceiver : BroadcastReceiver() {
         repo.allMembers().forEach { member ->
             val items = meds[member.id].orEmpty().mapNotNull { m -> m.refill(now)?.let { listOfNotNull(m.name, m.strength).joinToString(" ") to it } }
             val text = RefillText.digest(items) ?: return@forEach
-            notify(context, 200_000 + member.id.toInt(), "${member.name}'s medicines are running low", text, null)
+            notify(context, 200_000 + member.id.toInt(), if (member.isSelf) "Your medicines are running low" else "${member.name}'s medicines are running low", text, null)
         }
     }
 

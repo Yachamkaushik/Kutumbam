@@ -35,6 +35,25 @@ interface KutumbamDao {
     @Query("SELECT * FROM measurement WHERE memberId = :memberId ORDER BY date, id") fun measurements(memberId: Long): Flow<List<Measurement>>
     @Query("SELECT * FROM measurement WHERE memberId = :memberId ORDER BY date, id") suspend fun measurementsNow(memberId: Long): List<Measurement>
 
+    @androidx.room.Update suspend fun updateMember(m: FamilyMember)
+
+    @Insert suspend fun insertVital(v: Vital)
+    @Query("DELETE FROM vital WHERE id = :id") suspend fun deleteVital(id: Long)
+    @Query("SELECT * FROM vital WHERE memberId = :memberId ORDER BY date DESC, time DESC, id DESC") fun vitals(memberId: Long): Flow<List<Vital>>
+    @Query("SELECT * FROM vital WHERE memberId = :memberId ORDER BY date DESC, time DESC, id DESC") suspend fun vitalsNow(memberId: Long): List<Vital>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertTarget(t: VitalTarget)
+    @Query("DELETE FROM vital_target WHERE memberId = :memberId AND `key` = :key") suspend fun deleteTarget(memberId: Long, key: String)
+    @Query("SELECT * FROM vital_target WHERE memberId = :memberId") fun targets(memberId: Long): Flow<List<VitalTarget>>
+    @Query("SELECT * FROM vital_target WHERE memberId = :memberId") suspend fun targetsNow(memberId: Long): List<VitalTarget>
+
+    @Insert suspend fun insertNote(n: HealthNote)
+    @Query("DELETE FROM health_note WHERE id = :id") suspend fun deleteNote(id: Long)
+    @Query("SELECT * FROM health_note WHERE memberId = :memberId ORDER BY date DESC, id DESC") fun notes(memberId: Long): Flow<List<HealthNote>>
+    @Query("SELECT * FROM health_note WHERE memberId = :memberId ORDER BY date DESC, id DESC") suspend fun notesNow(memberId: Long): List<HealthNote>
+
+    @Query("SELECT * FROM dose_log WHERE date >= :fromDate AND status = 'taken'") suspend fun takenSince(fromDate: String): List<DoseLog>
+
     @Insert suspend fun insertDocument(d: DocumentEntity): Long
     @Insert suspend fun insertMedicines(m: List<MedicineEntity>)
     @Insert suspend fun insertLabs(l: List<LabValueEntity>)
@@ -63,8 +82,8 @@ interface KutumbamDao {
 }
 
 @Database(
-    entities = [FamilyMember::class, DocumentEntity::class, MedicineEntity::class, LabValueEntity::class, DoseLog::class, ImmunizationRecord::class, Measurement::class],
-    version = 6,
+    entities = [FamilyMember::class, DocumentEntity::class, MedicineEntity::class, LabValueEntity::class, DoseLog::class, ImmunizationRecord::class, Measurement::class, Vital::class, VitalTarget::class, HealthNote::class],
+    version = 7,
     exportSchema = false,
 )
 abstract class AppDb : RoomDatabase() {

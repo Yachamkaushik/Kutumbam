@@ -1,5 +1,6 @@
 package com.kutumbam.app.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -13,6 +14,13 @@ data class FamilyMember(
     val dateOfBirth: String?,
     val selfOperatesPhone: Boolean,
     val preferredLanguage: String = "en",
+    /** The person using the phone. At most one member has this set. */
+    @ColumnInfo(defaultValue = "0") val isSelf: Boolean = false,
+    val bloodGroup: String? = null,
+    val allergies: String? = null,
+    val conditions: String? = null,
+    val emergencyName: String? = null,
+    val emergencyPhone: String? = null,
 )
 
 @Entity(tableName = "document")
@@ -92,4 +100,36 @@ data class Measurement(
     val weightKg: Double?,
     val heightCm: Double?,
     val headCm: Double?,
+)
+
+/** A home reading: blood pressure (value = systolic, value2 = diastolic), blood sugar (context says fasting / after meal / random) or weight. */
+@Entity(tableName = "vital")
+data class Vital(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val memberId: Long,
+    val date: String,
+    val time: String,
+    val kind: String,
+    val value: Double,
+    val value2: Double?,
+    val context: String?,
+)
+
+/** A limit the person's own doctor gave (for example "BP below 130/80"). The app never invents one. */
+@Entity(tableName = "vital_target", indices = [Index(value = ["memberId", "key"], unique = true)])
+data class VitalTarget(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val memberId: Long,
+    val key: String,
+    val low: Double?,
+    val high: Double?,
+)
+
+/** Something the person noticed, in their own words, to mention at the next visit. */
+@Entity(tableName = "health_note")
+data class HealthNote(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val memberId: Long,
+    val date: String,
+    val text: String,
 )

@@ -35,6 +35,7 @@ photo / WhatsApp share  ->  ML Kit OCR  ->  rule-based parser  ->  confirm & cor
 | Elder voice mode (large buttons, spoken in Telugu / Hindi / English) | Built, verified on emulator except audio quality |
 | Child profile and immunization timeline (India UIP schedule engine, vaccination card scan, mark-as-given, daily due/overdue reminder) | Built, verified on emulator |
 | Ask-the-Locker (retrieval over stored records, refuses medical advice, grounding check on the on-device AI, sources shown, voice input and read-aloud) | Built, verified on emulator except voice and the AI answer path |
+| Refill predictor (tablets in the pack + doses per day gives a run-out date; daily 9:30 reminder from 3 days ahead; tap a medicine after a refill to restart the count) | Built, verified on emulator |
 | Share-in asks whose document it is | Built, verified on emulator |
 
 ## Requirements

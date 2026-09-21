@@ -24,6 +24,8 @@ data class ParsedMedicine(
     val meal: MealTiming,
     val durationDays: Int?,
     val sourceLine: String,
+    /** Tablets in the pack, when the document states it. */
+    val quantity: Int? = null,
 )
 
 data class ParsedLabValue(

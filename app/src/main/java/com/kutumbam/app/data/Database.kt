@@ -28,6 +28,8 @@ interface KutumbamDao {
     @Query("SELECT * FROM lab_value WHERE memberId = :memberId ORDER BY date, id") suspend fun labsNow(memberId: Long): List<LabValueEntity>
     @Query("SELECT * FROM document WHERE memberId = :memberId") suspend fun documentsNow(memberId: Long): List<DocumentEntity>
 
+    @Query("UPDATE medicine SET stockCount = :count, stockAsOf = :asOf WHERE id = :id") suspend fun setStock(id: Long, count: Int, asOf: String)
+
     @Insert suspend fun insertDocument(d: DocumentEntity): Long
     @Insert suspend fun insertMedicines(m: List<MedicineEntity>)
     @Insert suspend fun insertLabs(l: List<LabValueEntity>)
@@ -57,7 +59,7 @@ interface KutumbamDao {
 
 @Database(
     entities = [FamilyMember::class, DocumentEntity::class, MedicineEntity::class, LabValueEntity::class, DoseLog::class, ImmunizationRecord::class],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class AppDb : RoomDatabase() {

@@ -21,6 +21,9 @@ object ReminderScheduler {
     const val ACTION_TAKEN = "com.kutumbam.app.REMINDER_TAKEN"
     const val ACTION_TEST = "com.kutumbam.app.REMINDER_TEST"
     const val ACTION_VACCINE = "com.kutumbam.app.VACCINE_DIGEST"
+    const val ACTION_REFILL = "com.kutumbam.app.REFILL_DIGEST"
+    private const val REFILL_CODE = 3
+    private const val REFILL_NOW_CODE = 4
     private const val VACCINE_CODE = 2
     const val EXTRA_MEDICINE = "medicineId"
     const val EXTRA_TIME = "time"
@@ -30,6 +33,7 @@ object ReminderScheduler {
         val repo = (context.applicationContext as KutumbamApp).repo
         repo.allMedicines().forEach { scheduleMedicine(context, it) }
         armVaccineDigest(context, LocalDateTime.now())
+        armRefillDigest(context, LocalDateTime.now())
     }
 
     fun scheduleMedicine(context: Context, m: MedicineEntity) {
@@ -48,6 +52,18 @@ object ReminderScheduler {
         var at = after.toLocalDate().atTime(9, 0)
         if (!at.isAfter(after)) at = at.plusDays(1)
         arm(context, VACCINE_CODE, at, Intent(context, ReminderReceiver::class.java).setAction(ACTION_VACCINE))
+    }
+
+    /** One check a day at 9:30: any medicine that runs out within the lead time, or already has. Re-armed by the receiver. */
+    fun armRefillDigest(context: Context, after: LocalDateTime) {
+        var at = after.toLocalDate().atTime(9, 30)
+        if (!at.isAfter(after)) at = at.plusDays(1)
+        arm(context, REFILL_CODE, at, Intent(context, ReminderReceiver::class.java).setAction(ACTION_REFILL))
+    }
+
+    /** Runs the refill check shortly from now, for trying the reminder without waiting for 9:30. */
+    fun scheduleRefillCheckNow(context: Context, secondsFromNow: Long = 5) {
+        arm(context, REFILL_NOW_CODE, LocalDateTime.now().plusSeconds(secondsFromNow), Intent(context, ReminderReceiver::class.java).setAction(ACTION_REFILL))
     }
 
     fun scheduleTest(context: Context, secondsFromNow: Long = 5) {

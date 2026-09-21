@@ -2,6 +2,8 @@ package com.kutumbam.app.data
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.kutumbam.app.parse.RangeCheck
 import com.kutumbam.app.parse.RangeStatus
 import com.kutumbam.app.parse.TestNames
@@ -17,6 +19,7 @@ data class ConfirmedMedicine(
     val times: List<java.time.LocalTime>,
     val meal: String,
     val durationDays: Int?,
+    val quantity: Int? = null,
 )
 
 data class ConfirmedLab(
@@ -33,6 +36,7 @@ data class ConfirmedVaccine(val scheduleId: String, val date: LocalDate)
 class Repository(context: Context) {
     private val dao = Room.databaseBuilder(context, AppDb::class.java, "kutumbam.db")
         // Pre-release: the schema is still moving, so a version bump rebuilds the local database.
+        .addMigrations(MIGRATION_3_4)
         .fallbackToDestructiveMigration(true).build().dao()
 
     fun members(): Flow<List<FamilyMember>> = dao.members()
@@ -61,6 +65,8 @@ class Repository(context: Context) {
     suspend fun isDoseTaken(medicineId: Long, date: LocalDate, time: String) = dao.takenCount(medicineId, date.toString(), time) > 0
 
     suspend fun addMember(m: FamilyMember) = dao.insertMember(m)
+    /** The family counted [count] tablets today; the refill estimate restarts from here. */
+    suspend fun setStock(medicineId: Long, count: Int) = dao.setStock(medicineId, count, LocalDate.now().toString())
     suspend fun setLanguage(id: Long, code: String) = dao.setLanguage(id, code)
 
     suspend fun setDose(medicineId: Long, date: LocalDate, time: String, taken: Boolean) {
@@ -86,6 +92,7 @@ class Repository(context: Context) {
                 documentId = docId, memberId = memberId, name = it.name, strength = it.strength, form = it.form,
                 frequencyCode = it.frequencyCode, timesCsv = it.times.joinToString(",") { t -> t.toString() },
                 mealTiming = it.meal, durationDays = it.durationDays, startDate = today.toString(), confirmedByUser = true,
+                stockCount = it.quantity, stockAsOf = if (it.quantity != null) today.toString() else null,
             )
         }
         dao.insertMedicines(saved)
@@ -105,5 +112,14 @@ class Repository(context: Context) {
         })
         dao.upsertImmunizations(vaccinations.map { ImmunizationRecord(memberId = memberId, scheduleId = it.scheduleId, administeredDate = it.date.toString(), sourceDocumentId = docId) })
         return docId
+    }
+
+    private companion object {
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE medicine ADD COLUMN stockCount INTEGER")
+                db.execSQL("ALTER TABLE medicine ADD COLUMN stockAsOf TEXT")
+            }
+        }
     }
 }

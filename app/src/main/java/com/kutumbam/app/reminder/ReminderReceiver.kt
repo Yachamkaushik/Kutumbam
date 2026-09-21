@@ -17,7 +17,9 @@ import com.kutumbam.app.MainActivity
 import com.kutumbam.app.R
 import com.kutumbam.app.data.MedicineEntity
 import com.kutumbam.app.parse.ImmunizationEngine
+import com.kutumbam.app.data.refill
 import com.kutumbam.app.parse.MealTiming
+import com.kutumbam.app.parse.RefillText
 import com.kutumbam.app.parse.VaccineDigest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,6 +39,7 @@ class ReminderReceiver : BroadcastReceiver() {
                     ReminderScheduler.ACTION_FIRE -> fire(context, intent)
                     ReminderScheduler.ACTION_TAKEN -> taken(context, intent)
                     ReminderScheduler.ACTION_VACCINE -> vaccineDigest(context)
+                    ReminderScheduler.ACTION_REFILL -> refillDigest(context)
                     ReminderScheduler.ACTION_TEST -> notify(context, ReminderScheduler.TEST_CODE, "Kutumbam test reminder", "If you can read this, medicine reminders will reach you.", null)
                 }
             } finally {
@@ -70,6 +73,18 @@ class ReminderReceiver : BroadcastReceiver() {
             val given = repo.immunizationsNow(member.id).associate { it.scheduleId to LocalDate.parse(it.administeredDate) }
             val text = VaccineDigest.build(ImmunizationEngine.plan(dob, given, today), today) ?: return@forEach
             notify(context, 100_000 + member.id.toInt(), "${member.name}'s vaccinations", text, null)
+        }
+    }
+
+    private suspend fun refillDigest(context: Context) {
+        ReminderScheduler.armRefillDigest(context, LocalDateTime.now().plusMinutes(1))
+        val repo = (context.applicationContext as KutumbamApp).repo
+        val today = LocalDate.now()
+        val meds = repo.allMedicines().groupBy { it.memberId }
+        repo.allMembers().forEach { member ->
+            val items = meds[member.id].orEmpty().mapNotNull { m -> m.refill(today)?.let { listOfNotNull(m.name, m.strength).joinToString(" ") to it } }
+            val text = RefillText.digest(items) ?: return@forEach
+            notify(context, 200_000 + member.id.toInt(), "${member.name}'s medicines are running low", text, null)
         }
     }
 

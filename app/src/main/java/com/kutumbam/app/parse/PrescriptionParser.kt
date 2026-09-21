@@ -46,8 +46,9 @@ object PrescriptionParser {
                 val freq = prev.frequency ?: FrequencyParser.parse(line)
                 val meal = if (prev.meal == MealTiming.UNSPECIFIED) MealParser.parse(line) else prev.meal
                 val days = prev.durationDays ?: DurationParser.parse(line)
-                if (freq != prev.frequency || meal != prev.meal || days != prev.durationDays) {
-                    val merged = prev.copy(frequency = freq, meal = meal, durationDays = days, sourceLine = prev.sourceLine + " | " + line)
+                val qty = prev.quantity ?: PackQuantityParser.parse(line)
+                if (freq != prev.frequency || meal != prev.meal || days != prev.durationDays || qty != prev.quantity) {
+                    val merged = prev.copy(frequency = freq, meal = meal, durationDays = days, quantity = qty, sourceLine = prev.sourceLine + " | " + line)
                     result[pendingIndex] = merged
                     pending = merged
                 }
@@ -67,6 +68,7 @@ object PrescriptionParser {
         val freq = FrequencyParser.parse(body)
         val days = DurationParser.parse(body)
         val meal = MealParser.parse(body)
+        val qty = PackQuantityParser.span(body)
 
         val hasDosing = freq != null || days != null
         val accepted = prefix != null || (strength != null && hasDosing) || (freq != null && FrequencyParser.findSpan(body)?.first?.let { it > 2 } == true && body.firstOrNull()?.isLetter() == true)
@@ -78,6 +80,7 @@ object PrescriptionParser {
             MealParser.findSpan(body)?.first,
             DurationParser.findSpan(body)?.first,
             DURATION_STOP.find(body)?.range?.first,
+            qty?.first?.first,
             body.indexOf(" - ").takeIf { it > 0 },
             body.indexOf(" — ").takeIf { it > 0 },
         ).minOrNull() ?: body.length
@@ -92,6 +95,7 @@ object PrescriptionParser {
             meal = meal,
             durationDays = days,
             sourceLine = line,
+            quantity = qty?.second,
         )
     }
 

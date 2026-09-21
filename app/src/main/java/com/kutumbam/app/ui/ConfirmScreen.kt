@@ -112,6 +112,7 @@ private fun MedCard(m: EditableMed, vm: AppViewModel) {
                 Row2("Frequency", frequencyText(m.frequency))
                 Row2("Meal timing", mealLabel(m.meal))
                 Row2("Duration", m.durationDays.toIntOrNull()?.let { "$it days" } ?: "Not stated")
+                Row2("Tablets in pack", m.quantity.toIntOrNull()?.toString() ?: "Not stated (add it for refill reminders)")
                 if (m.times.isNotEmpty()) Row2("Reminders", m.times.joinToString(", ") { it.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)) })
             }
         }
@@ -151,6 +152,11 @@ private fun MedEditor(m: EditableMed, vm: AppViewModel) {
         OutlinedTextField(
             m.durationDays, { v -> vm.updateMed(m.key) { it.copy(durationDays = v.filter(Char::isDigit).take(3)) } },
             label = { Text("Duration (days)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        )
+        OutlinedTextField(
+            m.quantity, { v -> vm.updateMed(m.key) { it.copy(quantity = v.filter(Char::isDigit).take(3)) } },
+            label = { Text("Tablets in the pack (from the strip)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
     }

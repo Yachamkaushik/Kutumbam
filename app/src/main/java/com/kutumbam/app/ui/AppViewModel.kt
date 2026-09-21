@@ -10,6 +10,8 @@ import com.kutumbam.app.data.ConfirmedMedicine
 import com.kutumbam.app.data.FamilyMember
 import com.kutumbam.app.data.MedicineEntity
 import com.kutumbam.app.data.ReportSummary
+import com.kutumbam.app.data.refill
+import com.kutumbam.app.parse.RefillText
 import com.kutumbam.app.data.LabValueEntity
 import com.kutumbam.app.llm.Prompts
 import com.kutumbam.app.llm.generate
@@ -80,12 +82,16 @@ data class DoseRow(
 
 data class AlertInfo(val text: String, val documentId: Long)
 
+/** One medicine's supply on the home screen. [count] is what the family last counted; null means not set yet. */
+data class SupplyRow(val medicineId: Long, val name: String, val text: String, val urgent: Boolean, val count: Int?)
+
 data class HomeUi(
     val members: List<FamilyMember> = emptyList(),
     val selected: FamilyMember? = null,
     val doses: List<DoseRow> = emptyList(),
     val alert: AlertInfo? = null,
     val reports: List<ReportSummary> = emptyList(),
+    val supply: List<SupplyRow> = emptyList(),
 )
 
 data class LabRow(
@@ -123,6 +129,7 @@ data class EditableMed(
     val times: List<LocalTime>,
     val meal: MealTiming,
     val durationDays: String,
+    val quantity: String = "",
     val editing: Boolean = false,
 )
 
@@ -220,7 +227,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         it.documentId,
                     )
                 }
-                HomeUi(members, member, doses, alert, reports)
+                val supply = meds.filter { courseActive(it, today) }.map { m ->
+                    val e = m.refill(today)
+                    val text = when {
+                        e == null -> "Tablets in the pack not set. Tap to add the count."
+                        e.needsReminder -> RefillText.phrase(e).replaceFirstChar { it.uppercase() } + ". Time to get a refill."
+                        else -> RefillText.phrase(e).replaceFirstChar { it.uppercase() } + "."
+                    }
+                    SupplyRow(m.id, listOfNotNull(m.name, m.strength).joinToString(" "), text, e?.needsReminder == true, m.stockCount)
+                }.filter { m -> meds.first { it.id == m.medicineId }.frequencyCode != FrequencyCode.SOS.name }
+                    .sortedWith(compareByDescending<SupplyRow> { it.urgent }.thenBy { it.name })
+                HomeUi(members, member, doses, alert, reports, supply)
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUi())
@@ -551,6 +568,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                                 frequency = m.frequency?.code ?: FrequencyCode.OD,
                                 times = m.frequency?.times ?: FrequencyParser.defaultTimes(FrequencyCode.OD),
                                 meal = m.meal, durationDays = m.durationDays?.toString().orEmpty(),
+                                quantity = m.quantity?.toString().orEmpty(),
                             )
                         },
                         labs = doc.labValues,
@@ -578,6 +596,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setTime(key: Int, index: Int, time: LocalTime) =
         updateMed(key) { m -> m.copy(times = m.times.toMutableList().also { it[index] = time }.sorted()) }
 
+    /** The family counted the tablets they have now (after a refill, or the first time). */
+    fun setSupply(medicineId: Long, count: Int) {
+        viewModelScope.launch { repo.setStock(medicineId, count); _message.value = "Saved. The refill estimate now starts from $count tablets." }
+    }
+
     /** Re-arm every reminder from stored data (app start, after edits). */
     fun rearmReminders() { viewModelScope.launch(Dispatchers.Default) { ReminderScheduler.scheduleAll(getApplication()) } }
 
@@ -595,6 +618,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     ConfirmedMedicine(
                         name = it.name.trim(), strength = it.strength.trim().ifEmpty { null }, form = it.form,
                         frequencyCode = it.frequency.name, times = it.times, meal = it.meal.name, durationDays = it.durationDays.toIntOrNull(),
+                        quantity = it.quantity.toIntOrNull()?.takeIf { q -> q > 0 },
                     )
                 },
                 labs = d.labs.map { ConfirmedLab(it.testName, it.value, it.unit, it.rangeLow, it.rangeHigh, it.rangeText) },

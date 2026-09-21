@@ -59,6 +59,7 @@ fun HomeScreen(vm: AppViewModel) {
     val child by vm.child.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
     var showScan by remember { mutableStateOf(false) }
+    var supplyEdit by remember { mutableStateOf<SupplyRow?>(null) }
     val capture = rememberCapture(vm::processImage)
     val context = LocalContext.current
     val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -113,11 +114,21 @@ fun HomeScreen(vm: AppViewModel) {
             }
         }
 
+        if (ui.supply.isNotEmpty()) {
+            Text(
+                "MEDICINE SUPPLY", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp, color = K.Muted,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp),
+            )
+            Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                ui.supply.forEach { SupplyCard(it) { supplyEdit = it } }
+                Text("Estimated from the schedule, one tablet per dose. Tap a medicine after a refill to restart the count.", fontSize = 11.sp, color = K.Muted, lineHeight = 16.sp)
+            }
+        }
 
         if (ui.reports.isNotEmpty()) {
             Text(
                 "LAB REPORTS", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp, color = K.Muted,
-                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp),
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp),
             )
             Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 ui.reports.take(3).forEach { r ->
@@ -157,6 +168,9 @@ fun HomeScreen(vm: AppViewModel) {
             confirmButton = { TextButton(onClick = { showScan = false; capture.takePhoto() }) { Text("Take photo") } },
             dismissButton = { TextButton(onClick = { showScan = false; capture.pickImage() }) { Text("Choose from gallery") } },
         )
+    }
+    supplyEdit?.let { row ->
+        SupplyDialog(row, onDismiss = { supplyEdit = null }, onSave = { supplyEdit = null; vm.setSupply(row.medicineId, it) })
     }
     if (showAdd) AddMemberDialog(onDismiss = { showAdd = false }, onAdd = { n, r, d, s -> showAdd = false; vm.addMember(n, r, d, s) })
 }
@@ -205,6 +219,42 @@ private fun DoseCard(row: DoseRow, onToggle: () -> Unit) {
             }
         }
     }
+}
+
+@Composable
+private fun SupplyCard(row: SupplyRow, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(if (row.urgent) K.WarnBg else K.Card)
+            .border(1.dp, if (row.urgent) K.WarnBorder else K.Border, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top,
+    ) {
+        if (row.urgent) Icon(KIcons.Alert, null, Modifier.padding(top = 2.dp).size(18.dp), tint = K.WarnIcon)
+        Column(Modifier.weight(1f)) {
+            Text(row.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (row.urgent) K.WarnText else K.Ink)
+            Text(row.text, fontSize = 12.sp, lineHeight = 18.sp, color = if (row.urgent) K.WarnText else K.Muted, modifier = Modifier.padding(top = 2.dp))
+        }
+    }
+}
+
+@Composable
+private fun SupplyDialog(row: SupplyRow, onDismiss: () -> Unit, onSave: (Int) -> Unit) {
+    var count by remember { mutableStateOf(row.count?.toString().orEmpty()) }
+    val value = count.toIntOrNull()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(row.name) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Count the tablets you have today, including a new strip, and enter the total.", fontSize = 13.sp, color = K.Muted)
+                OutlinedTextField(
+                    count, { count = it.filter(Char::isDigit).take(3) }, label = { Text("Tablets you have now") }, singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { value?.let(onSave) }, enabled = value != null && value > 0) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

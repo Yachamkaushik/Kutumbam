@@ -39,6 +39,9 @@ data class MedicineEntity(
     val durationDays: Int?,
     val startDate: String,
     val confirmedByUser: Boolean,
+    /** Tablets counted on [stockAsOf] (null when unknown), the basis of the refill estimate. */
+    val stockCount: Int? = null,
+    val stockAsOf: String? = null,
 )
 
 @Entity(tableName = "lab_value")

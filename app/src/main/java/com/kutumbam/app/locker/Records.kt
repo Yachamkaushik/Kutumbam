@@ -23,6 +23,8 @@ data class MedRecord(
     val startDate: LocalDate,
     val source: Source,
     val supply: SupplyInfo? = null,
+    /** Tablets per dose, same order as [times]; empty means one each. */
+    val units: List<Double> = emptyList(),
 )
 
 data class LabRecord(

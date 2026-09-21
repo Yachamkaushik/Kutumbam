@@ -11,6 +11,9 @@ import com.kutumbam.app.data.FamilyMember
 import com.kutumbam.app.data.MedicineEntity
 import com.kutumbam.app.data.ReportSummary
 import com.kutumbam.app.data.Measurement
+import com.kutumbam.app.export.ExportFiles
+import com.kutumbam.app.export.SummaryBuilder
+import kotlinx.coroutines.flow.asSharedFlow
 import com.kutumbam.app.data.refill
 import com.kutumbam.app.visit.GrowthPoint
 import com.kutumbam.app.visit.PrepInput
@@ -82,7 +85,7 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-enum class Screen { HOME, CONFIRM, ELDER, REPORT, TREND, CHILD, ASK, DEV, VISIT }
+enum class Screen { HOME, HEALTH, CONFIRM, ELDER, REPORT, TREND, CHILD, ASK, DEV, VISIT }
 
 data class DoseRow(
     val medicineId: Long,
@@ -97,10 +100,10 @@ data class DoseRow(
     val timeText: String get() = time.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
 }
 
-data class AlertInfo(val text: String, val documentId: Long)
+data class AlertInfo(val text: String, val documentId: Long, val short: String = "")
 
 /** One medicine's supply on the home screen. [count] is what the family last counted; null means not set yet. */
-data class SupplyRow(val medicineId: Long, val name: String, val text: String, val urgent: Boolean, val count: Int?, val suggested: Int? = null, val suggestedNote: String? = null)
+data class SupplyRow(val medicineId: Long, val name: String, val text: String, val urgent: Boolean, val count: Int?, val suggested: Int? = null, val suggestedNote: String? = null, val schedule: String = "", val asNeeded: Boolean = false)
 
 data class HomeUi(
     val members: List<FamilyMember> = emptyList(),
@@ -252,6 +255,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         "${member.name}'s last ${it.testName} (${trim(it.value)}${it.unit?.let { u -> " $u" } ?: ""}) was outside $basis. " +
                             "Please talk to a doctor about it. Tap to view.",
                         it.documentId,
+                        "Latest ${it.testName} (${trim(it.value)}${it.unit?.let { u -> " $u" } ?: ""}) is outside its range",
                     )
                 }
                 val now = LocalDateTime.now()
@@ -273,8 +277,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     val suggested = if (m.stockCount == null) RefillPredictor.courseSupply(m.doseSlots(), m.durationDays) else null
                     val note = suggested?.let { "the whole ${m.durationDays}-day course at ${trim(RefillPredictor.unitsPerDay(m.doseSlots()))} a day" }
-                    SupplyRow(m.id, name, text, e?.needsReminder == true, m.stockCount, suggested, note)
-                }.sortedWith(compareByDescending<SupplyRow> { it.urgent }.thenBy { it.name })
+                    SupplyRow(m.id, name, text, e?.needsReminder == true, m.stockCount, suggested, note, scheduleText(m))
+                }.sortedWith(compareByDescending<SupplyRow> { it.urgent }.thenBy { it.name }) +
+                    meds.filter { it.frequencyCode == FrequencyCode.SOS.name }.map { m ->
+                        SupplyRow(m.id, listOfNotNull(m.name, m.strength).joinToString(" "), "Taken only when needed.", false, null, schedule = "As needed", asNeeded = true)
+                    }
                 val duplicates = DuplicateCheck.find(meds.filter { courseActive(it, today) }.map { MedRef(it.name, it.strength) })
                 HomeUi(members, member, doses, alert, reports, supply, duplicates)
             }
@@ -325,6 +332,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openChild() { _screen.value = Screen.CHILD }
 
+    /** Which section of the Health tab is showing: 0 medicines, 1 reports, 2 vaccines. */
+    private val _healthTab = MutableStateFlow(0)
+    val healthTab = _healthTab.asStateFlow()
+    fun setHealthTab(i: Int) { _healthTab.value = i }
+    fun openHealth(section: Int? = null) { section?.let { _healthTab.value = it }; _screen.value = Screen.HEALTH }
+
+    /** Switching between the bottom tabs. Re-selecting the current one does nothing. */
+    fun selectTab(screen: Screen) {
+        if (_screen.value == screen) return
+        when (screen) {
+            Screen.HOME -> _screen.value = Screen.HOME
+            Screen.HEALTH -> openHealth()
+            Screen.ASK -> openAsk()
+            Screen.VISIT -> openVisit()
+            else -> _screen.value = screen
+        }
+    }
+
     /** Growth entries for the selected child, oldest first. */
     val growth: StateFlow<List<Measurement>> = home.map { it.selected }.distinctUntilChanged().flatMapLatest { member ->
         if (member == null) flowOf(emptyList()) else repo.measurements(member.id)
@@ -353,16 +378,42 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         visitReturn = _screen.value.takeIf { it == Screen.CHILD } ?: Screen.HOME
         _visit.value = null
         _screen.value = Screen.VISIT
+        viewModelScope.launch { _visit.value = VisitPrep.build(prepInput(member)) }
+    }
+
+    private suspend fun prepInput(member: FamilyMember): PrepInput {
+        val data = buildLockerData(member)
+        val isChild = member.isChildWithDob()
+        return PrepInput(
+            person = member.name, isChild = isChild, dob = member.dateOfBirth?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
+            today = LocalDate.now(), medicines = data.medicines, labs = data.labs, immunization = if (isChild) data.immunization else null,
+            growth = repo.measurementsNow(member.id).map { GrowthPoint(LocalDate.parse(it.date), it.weightKg, it.heightCm, it.headCm) },
+        )
+    }
+
+    private val _pdfReady = kotlinx.coroutines.flow.MutableSharedFlow<File>(extraBufferCapacity = 1)
+    /** Emits the finished PDF so the screen can open the share sheet. */
+    val pdfReady = _pdfReady.asSharedFlow()
+
+    /** Builds the one-page summary, saves a copy in Downloads for Office Kit, then hands it to the share sheet. */
+    fun exportSummary() {
+        val member = home.value.selected ?: run { _message.value = "Add a family member first."; return }
         viewModelScope.launch {
-            val data = buildLockerData(member)
-            val isChild = member.isChildWithDob()
-            _visit.value = VisitPrep.build(
-                PrepInput(
-                    person = member.name, isChild = isChild, dob = member.dateOfBirth?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
-                    today = LocalDate.now(), medicines = data.medicines, labs = data.labs, immunization = if (isChild) data.immunization else null,
-                    growth = repo.measurementsNow(member.id).map { GrowthPoint(LocalDate.parse(it.date), it.weightKg, it.heightCm, it.headCm) },
-                ),
-            )
+            _busy.value = "Making the summary…"
+            try {
+                val input = prepInput(member)
+                val content = SummaryBuilder.build(input, VisitPrep.build(input))
+                val name = "Kutumbam-${member.name.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-')}-${input.today}.pdf"
+                val app = getApplication<Application>()
+                val file = withContext(Dispatchers.IO) { ExportFiles.createSummary(app, content, name) }
+                val saved = withContext(Dispatchers.IO) { runCatching { ExportFiles.saveToDownloads(app, file) }.getOrNull() }
+                _message.value = if (saved != null) "Saved to Downloads: $name" else "Summary ready."
+                _pdfReady.emit(file)
+            } catch (t: Throwable) {
+                _message.value = "Couldn't make the summary: ${t.message}"
+            } finally {
+                _busy.value = null
+            }
         }
     }
 
@@ -488,6 +539,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 sos = m.frequencyCode == FrequencyCode.SOS.name, meal = MealTiming.valueOf(m.mealTiming), durationDays = m.durationDays,
                 startDate = LocalDate.parse(m.startDate), source = Source(SourceKind.PRESCRIPTION, "Prescription · ${LocalDate.parse(stamp).format(fmt)}", m.documentId),
                 supply = m.refill(LocalDateTime.now())?.let { e -> SupplyInfo(RefillText.phrase(e), if (e.status == RefillStatus.COURSE_ENDS) null else RefillText.left(e), e.countedAt.toLocalDate(), e.needsReminder) },
+                units = DoseUnits.fromCsv(m.unitsCsv, m.timesCsv.split(",").count { it.isNotBlank() }),
             )
         }
         val labs = repo.labsNow(member.id).map { l ->
@@ -732,6 +784,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val file = File(dir, "doc_${System.currentTimeMillis()}.jpg")
         getApplication<Application>().contentResolver.openInputStream(uri)!!.use { i -> file.outputStream().use { o -> i.copyTo(o) } }
         return file
+    }
+
+    private fun scheduleText(m: MedicineEntity): String {
+        val times = m.timesCsv.split(",").filter { it.isNotBlank() }.map { LocalTime.parse(it).format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)) }
+        return listOfNotNull(times.joinToString(", ").ifEmpty { null }, mealText(m.mealTiming).ifEmpty { null }).joinToString(" · ")
     }
 
     private fun courseActive(m: MedicineEntity, today: LocalDate): Boolean {

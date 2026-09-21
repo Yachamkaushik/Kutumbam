@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -17,7 +16,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -41,6 +44,9 @@ import com.kutumbam.app.ui.theme.KIcons
 fun VisitScreen(vm: AppViewModel) {
     val sheet by vm.visit.collectAsState()
     val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        vm.pdfReady.collect { file -> context.startActivity(com.kutumbam.app.export.ExportFiles.shareIntent(context, file)) }
+    }
 
     Column(Modifier.fillMaxSize().background(K.Bg).statusBarsPadding()) {
         Row(Modifier.padding(start = 8.dp, end = 20.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -82,16 +88,25 @@ fun VisitScreen(vm: AppViewModel) {
             Text(s.footer, fontSize = 12.sp, lineHeight = 18.sp, color = K.Muted, modifier = Modifier.padding(vertical = 8.dp))
         }
 
-        Button(
-            onClick = {
-                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT, s.title).putExtra(Intent.EXTRA_TEXT, s.asText())
-                context.startActivity(Intent.createChooser(send, "Share the question list"))
-            },
-            colors = ButtonDefaults.buttonColors(containerColor = K.Teal, contentColor = Color.White),
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 16.dp).navigationBarsPadding().fillMaxWidth(),
-        ) {
-            Icon(KIcons.Send, null, Modifier.size(18.dp))
-            Text("  Share this list", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = { vm.exportSummary() }, modifier = Modifier.weight(1f).height(50.dp), shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = K.Teal, contentColor = Color.White),
+            ) {
+                Icon(KIcons.Download, null, Modifier.size(18.dp))
+                Text("  Summary PDF", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+            OutlinedButton(
+                onClick = {
+                    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_SUBJECT, s.title).putExtra(Intent.EXTRA_TEXT, s.asText())
+                    context.startActivity(Intent.createChooser(send, "Share the question list"))
+                },
+                modifier = Modifier.weight(1f).height(50.dp), shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, K.Border),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = K.Ink),
+            ) {
+                Icon(KIcons.Send, null, Modifier.size(18.dp), tint = K.Teal)
+                Text("  Share list", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }

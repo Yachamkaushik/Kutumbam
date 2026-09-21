@@ -40,6 +40,8 @@ photo / WhatsApp share  ->  ML Kit OCR  ->  rule-based parser  ->  confirm & cor
 | Tablets per dose (1-0-2, ½-0-½ read from the prescription, editable, shown on reminders, Home and in the spoken script) | Built, verified on emulator except audio |
 | Doctor visit prep sheet (questions from recently flagged lab values, medicine changes between the last two prescriptions, ended courses, overlaps and low supply; shareable as text) | Built, verified on emulator |
 | Pediatrician visit prep sheet (same, plus growth entries with trends and immunization due/overdue) and a Growth card on the child screen | Built, verified on emulator |
+| One-page health summary PDF (medicines, latest labs with printed ranges, child growth and vaccines, visit questions; saved to Downloads for iQOO Office Kit transfer, and shared via the share sheet) | Built, verified on emulator |
+| Bottom tabs: Today, Health (Medicines / Reports / Vaccines), Ask, Visit | Built, verified on emulator |
 | Share-in asks whose document it is | Built, verified on emulator |
 
 ## Requirements

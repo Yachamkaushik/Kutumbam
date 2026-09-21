@@ -33,5 +33,10 @@ object KIcons {
     val Plus = stroke("plus", "M12 5v14", "M5 12h14")
     val Heart = stroke("heart", "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z")
     val Send = stroke("send", "M22 2L11 13", "M22 2l-7 20-4-9-9-4 20-7z")
+    val Home = stroke("home", "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z", "M9 22V12h6v10")
+    val Clipboard = stroke("clipboard", "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2", "M9 2h6v4H9z", "M9 12h6", "M9 16h4")
+    val Chat = stroke("chat", "M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z")
+    val Download = stroke("download", "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M7 10l5 5 5-5", "M12 15V3")
+    val Chevron = stroke("chevron", "M9 18l6-6-6-6")
     val Close = stroke("close", "M18 6L6 18", "M6 6l12 12")
 }

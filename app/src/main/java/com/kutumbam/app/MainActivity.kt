@@ -13,6 +13,12 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -39,7 +45,10 @@ import com.kutumbam.app.ui.DevScreen
 import com.kutumbam.app.ui.ElderScreen
 import com.kutumbam.app.ui.ReportScreen
 import com.kutumbam.app.ui.TrendScreen
+import com.kutumbam.app.ui.HealthScreen
 import com.kutumbam.app.ui.HomeScreen
+import com.kutumbam.app.ui.KBottomBar
+import com.kutumbam.app.ui.TAB_SCREENS
 import com.kutumbam.app.ui.Screen
 import com.kutumbam.app.ui.theme.K
 import com.kutumbam.app.ui.theme.KutumbamTheme
@@ -80,9 +89,13 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Surface(Modifier.fillMaxSize(), color = K.Bg) {
-                    Box(Modifier.fillMaxSize()) {
+                  Column(Modifier.fillMaxSize()) {
+                    val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+                    val showBar = screen in TAB_SCREENS && !keyboardOpen
+                    Box(Modifier.weight(1f).fillMaxWidth().then(if (showBar) Modifier.consumeWindowInsets(WindowInsets.navigationBars) else Modifier)) {
                         when (screen) {
                             Screen.HOME -> HomeScreen(vm)
+                            Screen.HEALTH -> HealthScreen(vm)
                             Screen.CONFIRM -> ConfirmScreen(vm)
                             Screen.ELDER -> ElderScreen(vm)
                             Screen.REPORT -> ReportScreen(vm)
@@ -108,6 +121,8 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                    if (showBar) KBottomBar(screen) { vm.selectTab(it) }
+                  }
                 }
             }
         }

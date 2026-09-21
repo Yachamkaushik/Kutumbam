@@ -9,6 +9,18 @@ import com.kutumbam.app.data.ConfirmedLab
 import com.kutumbam.app.data.ConfirmedMedicine
 import com.kutumbam.app.data.FamilyMember
 import com.kutumbam.app.data.MedicineEntity
+import com.kutumbam.app.data.ReportSummary
+import com.kutumbam.app.data.LabValueEntity
+import com.kutumbam.app.llm.Prompts
+import com.kutumbam.app.llm.generate
+import com.kutumbam.app.parse.RangeCheck
+import com.kutumbam.app.parse.RangeStatus
+import com.kutumbam.app.parse.TestNames
+import com.kutumbam.app.parse.TrendPoint
+import com.kutumbam.app.parse.TrendSummary
+import com.kutumbam.app.parse.describeRange
+import com.kutumbam.app.parse.formatNumber
+import kotlinx.coroutines.flow.map
 import com.kutumbam.app.parse.DocumentParser
 import com.kutumbam.app.reminder.ReminderScheduler
 import com.kutumbam.app.parse.DocumentType
@@ -39,7 +51,7 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-enum class Screen { HOME, CONFIRM, ELDER, DEV }
+enum class Screen { HOME, CONFIRM, ELDER, REPORT, TREND, DEV }
 
 data class DoseRow(
     val medicineId: Long,
@@ -52,11 +64,39 @@ data class DoseRow(
     val timeText: String get() = time.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
 }
 
+data class AlertInfo(val text: String, val documentId: Long)
+
 data class HomeUi(
     val members: List<FamilyMember> = emptyList(),
     val selected: FamilyMember? = null,
     val doses: List<DoseRow> = emptyList(),
-    val alert: String? = null,
+    val alert: AlertInfo? = null,
+    val reports: List<ReportSummary> = emptyList(),
+)
+
+data class LabRow(
+    val testName: String,
+    val key: String,
+    val valueText: String,
+    val status: RangeStatus,
+    val rangeLabel: String?,
+    val usedFallback: Boolean,
+)
+
+data class ReportUi(val memberId: Long, val memberName: String, val date: String, val rows: List<LabRow>) {
+    val flaggedCount get() = rows.count { it.status == RangeStatus.ABOVE || it.status == RangeStatus.BELOW }
+    val usedFallback get() = rows.any { it.usedFallback }
+}
+
+data class TrendUi(
+    val person: String,
+    val testName: String,
+    val unit: String?,
+    val points: List<TrendPoint>,
+    val low: Double?,
+    val high: Double?,
+    val usedFallback: Boolean,
+    val summary: String,
 )
 
 /** A medicine card on the confirm screen. Everything is editable until the user saves. */
@@ -108,7 +148,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (member == null) flowOf(HomeUi(members))
         else {
             val today = LocalDate.now()
-            combine(repo.medicines(member.id), repo.doseLogs(today), repo.latestFlagged(member.id)) { meds, logs, flagged ->
+            combine(repo.medicines(member.id), repo.doseLogs(today), repo.latestFlagged(member.id), repo.reportSummaries(member.id)) { meds, logs, flagged, reports ->
                 val taken = logs.map { Triple(it.medicineId, it.time, it.status) }.filter { it.third == "taken" }.map { it.first to it.second }.toSet()
                 val doses = meds.filter { courseActive(it, today) }.flatMap { m ->
                     m.timesCsv.split(",").filter { it.isNotBlank() }.map { t ->
@@ -116,15 +156,107 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }.sortedBy { it.time }
                 val alert = flagged?.let {
-                    "${member.name}'s last ${it.testName} (${trim(it.value)}${it.unit?.let { u -> " $u" } ?: ""}) was outside the range " +
-                        "printed on the report. Please talk to a doctor about it."
+                    val basis = if (it.rangeSource == "standard") "the standard reference range (the report printed none)" else "the range printed on the report"
+                    AlertInfo(
+                        "${member.name}'s last ${it.testName} (${trim(it.value)}${it.unit?.let { u -> " $u" } ?: ""}) was outside $basis. " +
+                            "Please talk to a doctor about it. Tap to view.",
+                        it.documentId,
+                    )
                 }
-                HomeUi(members, member, doses, alert)
+                HomeUi(members, member, doses, alert, reports)
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUi())
 
     val speaking = kApp.speaker.speaking
+
+    private val reportDoc = MutableStateFlow<Long?>(null)
+    private val trendTarget = MutableStateFlow<Pair<Long, String>?>(null)
+
+    val report: StateFlow<ReportUi?> = reportDoc.flatMapLatest { id ->
+        if (id == null) flowOf(null)
+        else repo.labsForDocument(id).map { labs ->
+            if (labs.isEmpty()) null
+            else ReportUi(
+                memberId = labs.first().memberId,
+                memberName = repo.member(labs.first().memberId)?.name ?: "Family member",
+                date = LocalDate.parse(labs.maxOf { it.date }).format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH)),
+                rows = labs.map { it.toRow() },
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val trend: StateFlow<TrendUi?> = trendTarget.flatMapLatest { target ->
+        if (target == null) flowOf(null)
+        else repo.labHistory(target.first).map { all ->
+            val labs = all.filter { TestNames.key(it.testName) == target.second }
+            if (labs.isEmpty()) null else buildTrend(repo.member(target.first)?.name ?: "Family member", labs)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _aiSummary = MutableStateFlow<String?>(null)
+    val aiSummary = _aiSummary.asStateFlow()
+    private val _aiBusy = MutableStateFlow(false)
+    val aiBusy = _aiBusy.asStateFlow()
+
+    fun openReport(documentId: Long) { reportDoc.value = documentId; _screen.value = Screen.REPORT }
+
+    fun openTrend(memberId: Long, key: String) {
+        trendTarget.value = memberId to key
+        _aiSummary.value = null
+        _screen.value = Screen.TREND
+        writeAiSummary()
+    }
+
+    /** Back navigation for every screen; the trend screen returns to the report it was opened from. */
+    fun back() {
+        when (_screen.value) {
+            Screen.CONFIRM -> discard()
+            Screen.ELDER -> { kApp.speaker.stop(); _screen.value = Screen.HOME }
+            Screen.TREND -> _screen.value = if (reportDoc.value != null) Screen.REPORT else Screen.HOME
+            else -> _screen.value = Screen.HOME
+        }
+    }
+
+    /**
+     * Shows the rule-based sentence immediately. If the on-device model is loaded it rewrites it from the same computed
+     * facts, and its text is used only if it states the latest value; otherwise the template stays.
+     */
+    private fun writeAiSummary() {
+        viewModelScope.launch {
+            val t = trend.first { it != null } ?: return@launch
+            if (kApp.llm.activeBackend == null || t.points.size < 2) return@launch
+            _aiBusy.value = true
+            try {
+                val (system, user) = Prompts.trendSummary(TrendSummary.facts(t.person, t.testName, t.points, t.unit, t.low, t.high))
+                val text = kApp.llm.generate(system, user).text.trim()
+                if (TrendSummary.isFaithful(text, t.points)) _aiSummary.value = text
+            } catch (_: Throwable) {
+                // Keep the rule-based sentence.
+            } finally {
+                _aiBusy.value = false
+            }
+        }
+    }
+
+    private fun LabValueEntity.toRow(): LabRow {
+        val status = if (rangeSource == "none") RangeStatus.NO_RANGE else RangeCheck.status(value, printedRangeLow, printedRangeHigh)
+        return LabRow(
+            testName = testName, key = TestNames.key(testName),
+            valueText = listOfNotNull(formatNumber(value), unit).joinToString(" "),
+            status = status, rangeLabel = describeRange(printedRangeLow, printedRangeHigh, unit), usedFallback = rangeSource == "standard",
+        )
+    }
+
+    private fun buildTrend(person: String, labs: List<LabValueEntity>): TrendUi {
+        val latest = labs.last()
+        val points = labs.map { TrendPoint(LocalDate.parse(it.date), it.value) }
+        return TrendUi(
+            person = person, testName = latest.testName, unit = latest.unit, points = points,
+            low = latest.printedRangeLow, high = latest.printedRangeHigh, usedFallback = latest.rangeSource == "standard",
+            summary = TrendSummary.template(person, latest.testName.lowercase(), points, latest.unit, latest.printedRangeLow, latest.printedRangeHigh),
+        )
+    }
 
     fun select(id: Long) { selectedId.value = id }
 
@@ -224,7 +356,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun save() {
         val d = _draft.value ?: return
         viewModelScope.launch {
-            repo.saveConfirmed(
+            val docId = repo.saveConfirmed(
                 memberId = d.memberId, type = d.type.name, imagePath = d.imagePath, rawText = d.rawText, documentDate = d.date,
                 medicines = d.meds.filter { it.name.isNotBlank() }.map {
                     ConfirmedMedicine(
@@ -235,8 +367,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 labs = d.labs.map { ConfirmedLab(it.testName, it.value, it.unit, it.rangeLow, it.rangeHigh, it.rangeText) },
             )
             _draft.value = null
-            _screen.value = Screen.HOME
             _message.value = "Saved to ${d.memberName}'s locker."
+            if (d.labs.isNotEmpty() && d.meds.isEmpty()) openReport(docId) else _screen.value = Screen.HOME
             ReminderScheduler.scheduleAll(getApplication())
         }
     }

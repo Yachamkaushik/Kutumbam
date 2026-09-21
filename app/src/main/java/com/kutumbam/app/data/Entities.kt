@@ -54,6 +54,8 @@ data class LabValueEntity(
     val rangeText: String?,
     val flagged: Boolean,
     val date: String,
+    /** "printed" (range from the report itself), "standard" (bundled fallback), or "none". */
+    val rangeSource: String = "printed",
 )
 
 @Entity(tableName = "dose_log", indices = [Index(value = ["medicineId", "date", "time"], unique = true)])

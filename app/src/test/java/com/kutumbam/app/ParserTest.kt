@@ -207,4 +207,10 @@ class ParserTest {
         assertNotNull(doc.date)
         assertEquals(5, doc.medicines.size)
     }
+
+    @Test fun commonOcrSlipsInUnitsAreCorrected() {
+        assertEquals("uIU/mL", LabReportParser.parseLine("TSH  6.8  ulU/mL")?.unit)
+        assertEquals("mg/dL", LabReportParser.parseLine("Fasting Blood Glucose  118  mg/dl  70 - 100")?.unit)
+        assertEquals("mIU/L", LabReportParser.parseLine("TSH  2.1  mlU/L  0.4 - 4.0")?.unit)
+    }
 }

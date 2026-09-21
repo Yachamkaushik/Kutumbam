@@ -17,4 +17,11 @@ object Prompts {
             "Explain what to take, when, and whether before or after food."
         return system to user
     }
+
+    fun trendSummary(facts: String): Pair<String, String> {
+        val system = "You write a short, plain-language note for a family member about how one lab value changed across " +
+            "reports. Use only the facts given and quote the numbers exactly as given. At most 2 short sentences. $SAFETY"
+        val user = "Facts:\n$facts\nWrite the note."
+        return system to user
+    }
 }

@@ -8,6 +8,8 @@ import androidx.room.Query
 import androidx.room.RoomDatabase
 import kotlinx.coroutines.flow.Flow
 
+data class ReportSummary(val documentId: Long, val date: String, val total: Int, val flagged: Int)
+
 @Dao
 interface KutumbamDao {
     @Insert suspend fun insertMember(m: FamilyMember): Long
@@ -33,13 +35,18 @@ interface KutumbamDao {
     @Query("DELETE FROM dose_log WHERE medicineId = :medicineId AND date = :date AND time = :time")
     suspend fun unlogDose(medicineId: Long, date: String, time: String)
 
+    @Query("SELECT * FROM lab_value WHERE documentId = :docId ORDER BY id") fun labsForDocument(docId: Long): Flow<List<LabValueEntity>>
+    @Query("SELECT * FROM lab_value WHERE memberId = :memberId ORDER BY date, id") fun labHistory(memberId: Long): Flow<List<LabValueEntity>>
+    @Query("SELECT documentId, MAX(date) AS date, COUNT(*) AS total, SUM(flagged) AS flagged FROM lab_value WHERE memberId = :memberId GROUP BY documentId ORDER BY date DESC, documentId DESC")
+    fun reportSummaries(memberId: Long): Flow<List<ReportSummary>>
+
     @Query("SELECT * FROM lab_value WHERE memberId = :memberId AND flagged = 1 ORDER BY date DESC, id DESC LIMIT 1")
     fun latestFlagged(memberId: Long): Flow<LabValueEntity?>
 }
 
 @Database(
     entities = [FamilyMember::class, DocumentEntity::class, MedicineEntity::class, LabValueEntity::class, DoseLog::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class AppDb : RoomDatabase() {

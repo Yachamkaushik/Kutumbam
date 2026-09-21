@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.kutumbam.app.parse.RangeCheck
 import com.kutumbam.app.parse.RangeStatus
+import com.kutumbam.app.parse.TestNames
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
@@ -28,12 +29,17 @@ data class ConfirmedLab(
 )
 
 class Repository(context: Context) {
-    private val dao = Room.databaseBuilder(context, AppDb::class.java, "kutumbam.db").build().dao()
+    private val dao = Room.databaseBuilder(context, AppDb::class.java, "kutumbam.db")
+        // Pre-release: the schema is still moving, so a version bump rebuilds the local database.
+        .fallbackToDestructiveMigration(true).build().dao()
 
     fun members(): Flow<List<FamilyMember>> = dao.members()
     fun medicines(memberId: Long) = dao.medicines(memberId)
     fun doseLogs(date: LocalDate) = dao.doseLogs(date.toString())
     fun latestFlagged(memberId: Long) = dao.latestFlagged(memberId)
+    fun labsForDocument(docId: Long) = dao.labsForDocument(docId)
+    fun labHistory(memberId: Long) = dao.labHistory(memberId)
+    fun reportSummaries(memberId: Long) = dao.reportSummaries(memberId)
 
     suspend fun allMedicines() = dao.allMedicines()
     suspend fun medicine(id: Long) = dao.medicine(id)
@@ -57,7 +63,7 @@ class Repository(context: Context) {
         documentDate: LocalDate?,
         medicines: List<ConfirmedMedicine>,
         labs: List<ConfirmedLab>,
-    ) {
+    ): Long {
         val today = LocalDate.now()
         val docId = dao.insertDocument(DocumentEntity(memberId = memberId, type = type, sourceImagePath = imagePath, captureDate = today.toString(), ocrRawText = rawText))
         val saved = medicines.map {
@@ -69,12 +75,19 @@ class Repository(context: Context) {
         }
         dao.insertMedicines(saved)
         dao.insertLabs(labs.map {
-            val status = RangeCheck.status(it.value, it.low, it.high)
+            // The report's own printed range always wins; the small bundled table is used only when none was printed.
+            val printed = it.low != null || it.high != null
+            val fallback = if (printed) null else TestNames.fallback(it.testName, it.unit)
+            val low = if (printed) it.low else fallback?.low
+            val high = if (printed) it.high else fallback?.high
+            val status = RangeCheck.status(it.value, low, high)
             LabValueEntity(
                 documentId = docId, memberId = memberId, testName = it.testName, value = it.value, unit = it.unit,
-                printedRangeLow = it.low, printedRangeHigh = it.high, rangeText = it.rangeText,
+                printedRangeLow = low, printedRangeHigh = high, rangeText = it.rangeText,
                 flagged = status == RangeStatus.ABOVE || status == RangeStatus.BELOW, date = (documentDate ?: today).toString(),
+                rangeSource = when { printed -> "printed"; fallback != null -> "standard"; else -> "none" },
             )
         })
+        return docId
     }
 }

@@ -15,7 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,6 +34,8 @@ import com.kutumbam.app.ui.AppViewModel
 import com.kutumbam.app.ui.ConfirmScreen
 import com.kutumbam.app.ui.DevScreen
 import com.kutumbam.app.ui.ElderScreen
+import com.kutumbam.app.ui.ReportScreen
+import com.kutumbam.app.ui.TrendScreen
 import com.kutumbam.app.ui.HomeScreen
 import com.kutumbam.app.ui.Screen
 import com.kutumbam.app.ui.theme.K
@@ -54,9 +56,7 @@ class MainActivity : ComponentActivity() {
                 val busy by vm.busy.collectAsState()
                 val message by vm.message.collectAsState()
 
-                BackHandler(enabled = screen != Screen.HOME) {
-                    when (screen) { Screen.CONFIRM -> vm.discard(); Screen.ELDER -> { vm.stopSpeaking(); vm.show(Screen.HOME) }; else -> vm.show(Screen.HOME) }
-                }
+                BackHandler(enabled = screen != Screen.HOME) { vm.back() }
 
                 Surface(Modifier.fillMaxSize(), color = K.Bg) {
                     Box(Modifier.fillMaxSize()) {
@@ -64,12 +64,14 @@ class MainActivity : ComponentActivity() {
                             Screen.HOME -> HomeScreen(vm)
                             Screen.CONFIRM -> ConfirmScreen(vm)
                             Screen.ELDER -> ElderScreen(vm)
+                            Screen.REPORT -> ReportScreen(vm)
+                            Screen.TREND -> TrendScreen(vm)
                             Screen.DEV -> DevScreen { vm.show(Screen.HOME) }
                         }
                         message?.let { text ->
                             LaunchedEffect(text) { delay(4000); vm.clearMessage() }
                             Box(
-                                Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(20.dp).clip(RoundedCornerShape(12.dp))
+                                Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(20.dp).clip(RoundedCornerShape(12.dp))
                                     .background(K.Ink).clickable { vm.clearMessage() }.padding(horizontal = 16.dp, vertical = 12.dp),
                             ) { Text(text, color = Color.White, fontSize = 13.sp) }
                         }

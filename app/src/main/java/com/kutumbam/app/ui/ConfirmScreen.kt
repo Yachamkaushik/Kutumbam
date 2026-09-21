@@ -41,6 +41,7 @@ import com.kutumbam.app.parse.DocumentType
 import com.kutumbam.app.parse.FrequencyCode
 import com.kutumbam.app.parse.MealTiming
 import com.kutumbam.app.parse.ParsedLabValue
+import com.kutumbam.app.parse.TestNames
 import com.kutumbam.app.ui.theme.K
 import com.kutumbam.app.ui.theme.KIcons
 import java.time.LocalTime
@@ -166,7 +167,10 @@ private fun LabCard(v: ParsedLabValue, onRemove: () -> Unit) {
             }
             Spacer10()
             Row2("Result", listOfNotNull(if (v.value % 1.0 == 0.0) v.value.toLong().toString() else v.value.toString(), v.unit).joinToString(" "))
-            Row2("Printed range", v.rangeText ?: "Not printed on report")
+            Row2(
+                "Printed range",
+                v.rangeText ?: if (TestNames.fallback(v.testName, v.unit) != null) "Not printed; standard reference will be used" else "Not printed on report",
+            )
         }
     }
 }

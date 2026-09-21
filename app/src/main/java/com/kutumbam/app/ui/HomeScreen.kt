@@ -90,7 +90,7 @@ fun HomeScreen(vm: AppViewModel) {
             }
         }
 
-        ui.alert?.let { AlertBanner(it) }
+        ui.alert?.let { AlertBanner(it.text) { vm.openReport(it.documentId) } }
 
         val member = ui.selected
         if (member == null) {
@@ -107,6 +107,31 @@ fun HomeScreen(vm: AppViewModel) {
                     Card { Text("Nothing scheduled today. Scan a prescription to add ${member.name}'s medicines.", fontSize = 13.sp, color = K.Muted, lineHeight = 20.sp, modifier = Modifier.padding(16.dp)) }
                 }
                 ui.doses.forEach { DoseCard(it) { vm.toggleDose(it) } }
+            }
+        }
+
+
+        if (ui.reports.isNotEmpty()) {
+            Text(
+                "LAB REPORTS", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.7.sp, color = K.Muted,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 8.dp),
+            )
+            Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                ui.reports.take(3).forEach { r ->
+                    Card(Modifier.clickable { vm.openReport(r.documentId) }) {
+                        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(java.time.LocalDate.parse(r.date).format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy", java.util.Locale.ENGLISH)), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = K.Ink)
+                                Text("${r.total} values", fontSize = 12.sp, color = K.Muted)
+                            }
+                            Text(
+                                if (r.flagged > 0) "${r.flagged} outside range" else "All in range",
+                                fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (r.flagged > 0) K.WarnIcon else K.Green,
+                                modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(if (r.flagged > 0) K.WarnBg else Color(0xFFE9F7EF)).padding(horizontal = 10.dp, vertical = 3.dp),
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -149,10 +174,10 @@ internal fun Card(modifier: Modifier = Modifier, content: @Composable () -> Unit
 }
 
 @Composable
-private fun AlertBanner(text: String) {
+private fun AlertBanner(text: String, onClick: () -> Unit) {
     Row(
         Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .background(K.WarnBg).border(1.dp, K.WarnBorder, RoundedCornerShape(14.dp)).padding(14.dp),
+            .background(K.WarnBg).border(1.dp, K.WarnBorder, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(14.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Icon(KIcons.Alert, null, Modifier.padding(top = 2.dp).size(18.dp), tint = K.WarnIcon)

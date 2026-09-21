@@ -34,7 +34,7 @@ object LabReportParser {
         val name = m.groups["name"]!!.value.trim(' ', ':', '-', '.', ',')
         if (name.count { it.isLetter() } < 2 || SKIP_NAME.containsMatchIn(name)) return null
 
-        val unit = m.groups["unit"]?.value?.trim()?.takeIf { it.isNotEmpty() }
+        val unit = m.groups["unit"]?.value?.trim()?.takeIf { it.isNotEmpty() }?.let(::canonUnit)
         val rest = m.groups["rest"]?.value.orEmpty()
 
         var low: Double? = null
@@ -62,6 +62,13 @@ object LabReportParser {
             rangeText = rangeText,
             sourceLine = rawLine.trim(),
         )
+    }
+
+    /** Fixes common OCR slips in units, e.g. "ulU/mL" (lowercase L) for "uIU/mL" and "mg/dl" for "mg/dL". */
+    private fun canonUnit(u: String): String = when {
+        Regex("""^[uµμ][il1|]u/m[l1]$""", RegexOption.IGNORE_CASE).matches(u) -> "uIU/mL"
+        Regex("""^m[il1|]u/[l1]$""", RegexOption.IGNORE_CASE).matches(u) -> "mIU/L"
+        else -> u.replace(Regex("/dl$", RegexOption.IGNORE_CASE), "/dL").replace(Regex("/ml$", RegexOption.IGNORE_CASE), "/mL")
     }
 
     private fun String.toNum() = replace(",", "").toDouble()

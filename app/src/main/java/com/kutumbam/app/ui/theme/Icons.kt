@@ -40,4 +40,6 @@ object KIcons {
     val Download = stroke("download", "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4", "M7 10l5 5 5-5", "M12 15V3")
     val Chevron = stroke("chevron", "M9 18l6-6-6-6")
     val Close = stroke("close", "M18 6L6 18", "M6 6l12 12")
+    val Calendar = stroke("calendar", "M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z", "M16 2v4", "M8 2v4", "M3 10h18")
 }
+

@@ -79,11 +79,17 @@ interface KutumbamDao {
 
     @Query("SELECT * FROM lab_value WHERE memberId = :memberId AND flagged = 1 ORDER BY date DESC, id DESC LIMIT 1")
     fun latestFlagged(memberId: Long): Flow<LabValueEntity?>
+
+    @Insert suspend fun insertVisit(v: FollowUpVisit): Long
+    @Query("DELETE FROM follow_up_visit WHERE id = :id") suspend fun deleteVisit(id: Long)
+    @Query("SELECT * FROM follow_up_visit ORDER BY date, time") fun allVisits(): Flow<List<FollowUpVisit>>
+    @Query("SELECT * FROM follow_up_visit WHERE memberId = :memberId ORDER BY date, time") fun visitsForMember(memberId: Long): Flow<List<FollowUpVisit>>
+    @Query("SELECT * FROM follow_up_visit ORDER BY date, time") suspend fun allVisitsNow(): List<FollowUpVisit>
 }
 
 @Database(
-    entities = [FamilyMember::class, DocumentEntity::class, MedicineEntity::class, LabValueEntity::class, DoseLog::class, ImmunizationRecord::class, Measurement::class, Vital::class, VitalTarget::class, HealthNote::class],
-    version = 7,
+    entities = [FamilyMember::class, DocumentEntity::class, MedicineEntity::class, LabValueEntity::class, DoseLog::class, ImmunizationRecord::class, Measurement::class, Vital::class, VitalTarget::class, HealthNote::class, FollowUpVisit::class],
+    version = 8,
     exportSchema = false,
 )
 abstract class AppDb : RoomDatabase() {

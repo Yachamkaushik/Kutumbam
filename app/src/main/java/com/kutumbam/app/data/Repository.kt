@@ -38,8 +38,7 @@ data class ConfirmedVaccine(val scheduleId: String, val date: LocalDate)
 
 class Repository(context: Context) {
     private val dao = Room.databaseBuilder(context, AppDb::class.java, "kutumbam.db")
-        // Pre-release: the schema is still moving, so a version bump rebuilds the local database.
-        .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+        .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
         .fallbackToDestructiveMigration(true).build().dao()
 
     fun members(): Flow<List<FamilyMember>> = dao.members()
@@ -47,10 +46,18 @@ class Repository(context: Context) {
     fun doseLogs(date: LocalDate) = dao.doseLogs(date.toString())
     fun latestFlagged(memberId: Long) = dao.latestFlagged(memberId)
     suspend fun allMembers() = dao.allMembers()
+    suspend fun allMedicines() = dao.allMedicines()
     suspend fun medicinesNow(memberId: Long) = dao.medicinesNow(memberId)
     suspend fun labsNow(memberId: Long) = dao.labsNow(memberId)
     suspend fun documentsNow(memberId: Long) = dao.documentsNow(memberId)
+    suspend fun immunizationsNow(memberId: Long) = dao.immunizationsNow(memberId)
     suspend fun updateMember(m: FamilyMember) = dao.updateMember(m)
+
+    fun allVisits(): Flow<List<FollowUpVisit>> = dao.allVisits()
+    fun visitsForMember(memberId: Long): Flow<List<FollowUpVisit>> = dao.visitsForMember(memberId)
+    suspend fun allVisitsNow(): List<FollowUpVisit> = dao.allVisitsNow()
+    suspend fun addVisit(v: FollowUpVisit) = dao.insertVisit(v)
+    suspend fun deleteVisit(id: Long) = dao.deleteVisit(id)
 
     fun vitals(memberId: Long) = dao.vitals(memberId)
     suspend fun vitalsNow(memberId: Long) = dao.vitalsNow(memberId)
@@ -75,7 +82,6 @@ class Repository(context: Context) {
     suspend fun deleteMeasurement(id: Long) = dao.deleteMeasurement(id)
 
     fun immunizations(memberId: Long) = dao.immunizations(memberId)
-    suspend fun immunizationsNow(memberId: Long) = dao.immunizationsNow(memberId)
 
     suspend fun markVaccine(memberId: Long, scheduleId: String, date: LocalDate) =
         dao.upsertImmunizations(listOf(ImmunizationRecord(memberId = memberId, scheduleId = scheduleId, administeredDate = date.toString())))
@@ -86,7 +92,6 @@ class Repository(context: Context) {
     fun labHistory(memberId: Long) = dao.labHistory(memberId)
     fun reportSummaries(memberId: Long) = dao.reportSummaries(memberId)
 
-    suspend fun allMedicines() = dao.allMedicines()
     suspend fun medicine(id: Long) = dao.medicine(id)
     suspend fun member(id: Long) = dao.member(id)
     suspend fun isDoseTaken(medicineId: Long, date: LocalDate, time: String) = dao.takenCount(medicineId, date.toString(), time) > 0
@@ -143,6 +148,12 @@ class Repository(context: Context) {
     }
 
     private companion object {
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `follow_up_visit` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `memberId` INTEGER NOT NULL, `doctorOrClinic` TEXT NOT NULL, `date` TEXT NOT NULL, `time` TEXT, `reason` TEXT, `completed` INTEGER NOT NULL)")
+            }
+        }
+
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE member ADD COLUMN isSelf INTEGER NOT NULL DEFAULT 0")

@@ -133,3 +133,16 @@ data class HealthNote(
     val date: String,
     val text: String,
 )
+
+/** An upcoming clinic review or doctor follow-up visit. */
+@Entity(tableName = "follow_up_visit")
+data class FollowUpVisit(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val memberId: Long,
+    val doctorOrClinic: String,
+    val date: String,
+    val time: String? = null,
+    val reason: String? = null,
+    val completed: Boolean = false,
+)
+

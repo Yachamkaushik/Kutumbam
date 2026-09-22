@@ -65,7 +65,7 @@ fun ElderHeader(
                     .size(56.dp)
                     .clip(CircleShape)
                     .background(K.Card)
-                    .border(2.dp, K.Border, CircleShape)
+                    .border(1.dp, K.Border, CircleShape)
                     .clickable(role = Role.Button, onClick = onBackClick)
                     .semantics {
                         this.role = Role.Button
@@ -92,7 +92,7 @@ fun ElderHeader(
                         modifier = Modifier
                             .clip(RoundedCornerShape(20.dp))
                             .background(if (selected) K.Teal else K.Card)
-                            .border(2.dp, if (selected) K.Teal else K.Border, RoundedCornerShape(20.dp))
+                            .border(1.dp, if (selected) K.Teal else K.Border, RoundedCornerShape(20.dp))
                             .clickable(
                                 role = Role.RadioButton,
                                 onClick = { onLanguageChange(langOption) },

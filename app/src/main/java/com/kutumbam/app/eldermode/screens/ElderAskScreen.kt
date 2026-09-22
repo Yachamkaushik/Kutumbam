@@ -156,9 +156,9 @@ fun ElderAskScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(16.dp))
+                                    .clip(RoundedCornerShape(14.dp))
                                     .background(K.Card)
-                                    .border(1.5.dp, K.Teal, RoundedCornerShape(16.dp))
+                                    .border(1.dp, K.Teal, RoundedCornerShape(14.dp))
                                     .padding(16.dp),
                             ) {
                                 Text(
@@ -198,9 +198,9 @@ fun ElderAskScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(24.dp))
+                                .clip(RoundedCornerShape(14.dp))
                                 .background(K.Card)
-                                .border(2.dp, K.Teal, RoundedCornerShape(24.dp))
+                                .border(1.dp, K.Teal, RoundedCornerShape(14.dp))
                                 .padding(20.dp),
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -271,9 +271,9 @@ fun ElderAskScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(20.dp))
+                                .clip(RoundedCornerShape(14.dp))
                                 .background(K.WarnBg)
-                                .border(2.dp, K.WarnBorder, RoundedCornerShape(20.dp))
+                                .border(1.dp, K.WarnBorder, RoundedCornerShape(14.dp))
                                 .padding(18.dp),
                         ) {
                             Column(

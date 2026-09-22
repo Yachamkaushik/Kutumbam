@@ -1,6 +1,7 @@
 package com.kutumbam.app.eldermode.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,8 +80,9 @@ fun ElderHealthScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(if (flaggedCount > 0) K.WarnBg else K.TealTint)
+                    .border(1.dp, if (flaggedCount > 0) K.WarnBorder else K.Border, RoundedCornerShape(14.dp))
                     .padding(18.dp),
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

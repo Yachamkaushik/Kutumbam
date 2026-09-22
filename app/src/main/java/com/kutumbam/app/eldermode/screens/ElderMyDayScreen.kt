@@ -86,9 +86,9 @@ fun ElderMyDayScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(K.TealTint)
-                    .border(2.dp, K.Teal, RoundedCornerShape(24.dp))
+                    .border(1.dp, K.Teal, RoundedCornerShape(14.dp))
                     .clickable(
                         role = Role.Button,
                         onClick = { viewModel.speakMyDay() },
@@ -138,9 +138,9 @@ fun ElderMyDayScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(K.Card)
-                    .border(2.dp, K.Border, RoundedCornerShape(20.dp))
+                    .border(1.dp, K.Border, RoundedCornerShape(14.dp))
                     .padding(18.dp),
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -177,9 +177,9 @@ fun ElderMyDayScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(K.WarnBg)
-                        .border(2.dp, K.WarnBorder, RoundedCornerShape(20.dp))
+                        .border(1.dp, K.WarnBorder, RoundedCornerShape(14.dp))
                         .padding(18.dp),
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -224,9 +224,9 @@ fun ElderMyDayScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(RoundedCornerShape(14.dp))
                             .background(K.Card)
-                            .border(1.5.dp, if (dose.isTaken) K.Green else K.Border, RoundedCornerShape(16.dp))
+                            .border(1.dp, if (dose.isTaken) K.Green else K.Border, RoundedCornerShape(14.dp))
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,

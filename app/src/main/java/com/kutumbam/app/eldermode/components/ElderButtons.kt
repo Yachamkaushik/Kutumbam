@@ -63,9 +63,9 @@ fun ElderBigButton(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = minHeight)
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(backgroundColor)
-            .border(2.dp, borderColor, RoundedCornerShape(20.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(14.dp))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -86,48 +86,47 @@ fun ElderBigButton(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.weight(1f),
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(contentColor.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null, // Handled by parent semantics
-                        modifier = Modifier.size(26.dp),
-                        tint = contentColor,
-                    )
-                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null, // Handled by parent semantics
+                    modifier = Modifier.size(24.dp),
+                    tint = contentColor,
+                )
 
                 Text(
                     text = title,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
                     color = contentColor,
-                    lineHeight = 24.sp,
+                    lineHeight = 22.sp,
                 )
             }
 
             if (badgeText != null) {
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(10.dp))
                         .background(contentColor.copy(alpha = 0.15f))
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
                 ) {
                     Text(
                         text = badgeText,
-                        fontSize = 15.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = contentColor,
                     )
                 }
             }
+
+            Icon(
+                imageVector = KIcons.Chevron,
+                contentDescription = null,
+                modifier = Modifier.padding(start = 6.dp).size(18.dp),
+                tint = contentColor,
+            )
         }
     }
 }
@@ -204,9 +203,9 @@ fun ElderPillButton(
     Box(
         modifier = modifier
             .heightIn(min = minHeight)
-            .clip(RoundedCornerShape(28.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(backgroundColor)
-            .border(2.dp, borderColor, RoundedCornerShape(28.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(20.dp))
             .clickable(role = Role.Button, onClick = onClick)
             .semantics {
                 this.role = Role.Button

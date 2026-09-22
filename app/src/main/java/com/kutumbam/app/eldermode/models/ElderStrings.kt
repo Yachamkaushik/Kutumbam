@@ -51,50 +51,50 @@ object ElderStrings {
     fun myMedicines(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "నా మందులు"
         AppLanguage.HINDI -> "मेरी दवाइयाँ"
-        AppLanguage.ENGLISH -> "MY MEDICINES"
+        AppLanguage.ENGLISH -> "My Medicines"
     }
 
     fun askKutumbam(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "కుటుంబం ను అడగండి"
         AppLanguage.HINDI -> "कुटुम्बम से पूछें"
-        AppLanguage.ENGLISH -> "ASK KUTUMBAM"
+        AppLanguage.ENGLISH -> "Ask Kutumbam"
     }
 
     fun myHealth(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "నా ఆరోగ్యం"
         AppLanguage.HINDI -> "मेरा स्वास्थ्य"
-        AppLanguage.ENGLISH -> "MY HEALTH"
+        AppLanguage.ENGLISH -> "My Health"
     }
 
     fun myDay(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "ఈ రోజు వివరాలు"
         AppLanguage.HINDI -> "मेरा दिन"
-        AppLanguage.ENGLISH -> "MY DAY"
+        AppLanguage.ENGLISH -> "My Day"
     }
 
     fun emergency(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "అత్యవసరం"
         AppLanguage.HINDI -> "आपातकालीन"
-        AppLanguage.ENGLISH -> "EMERGENCY"
+        AppLanguage.ENGLISH -> "Emergency"
     }
 
     // Button Labels
     fun readMyDay(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "రోజు వివరాలు వినండి"
         AppLanguage.HINDI -> "मेरा दिन सुनें"
-        AppLanguage.ENGLISH -> "READ MY DAY"
+        AppLanguage.ENGLISH -> "Read my day"
     }
 
     fun hear(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "వినండి"
         AppLanguage.HINDI -> "सुनें"
-        AppLanguage.ENGLISH -> "HEAR"
+        AppLanguage.ENGLISH -> "Hear"
     }
 
     fun taken(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "వేసుకున్నాను"
         AppLanguage.HINDI -> "ले ली"
-        AppLanguage.ENGLISH -> "TAKEN"
+        AppLanguage.ENGLISH -> "Taken"
     }
 
     fun notTaken(lang: AppLanguage): String = when (lang) {
@@ -106,31 +106,31 @@ object ElderStrings {
     fun remindLater(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "తర్వాత గుర్తుచేయి"
         AppLanguage.HINDI -> "बाद में याद दिलाएं"
-        AppLanguage.ENGLISH -> "REMIND LATER"
+        AppLanguage.ENGLISH -> "Remind later"
     }
 
     fun skip(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "వదిలేయి"
         AppLanguage.HINDI -> "छोड़ें"
-        AppLanguage.ENGLISH -> "SKIP"
+        AppLanguage.ENGLISH -> "Skip"
     }
 
     fun hearAgain(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "మళ్లీ వినండి"
         AppLanguage.HINDI -> "फिर से सुनें"
-        AppLanguage.ENGLISH -> "HEAR AGAIN"
+        AppLanguage.ENGLISH -> "Hear again"
     }
 
     fun stopSpeaking(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "ఆపండి"
         AppLanguage.HINDI -> "रोकें"
-        AppLanguage.ENGLISH -> "STOP"
+        AppLanguage.ENGLISH -> "Stop"
     }
 
     fun askAnother(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "మరో ప్రశ్న అడగండి"
         AppLanguage.HINDI -> "दूसरा सवाल पूछें"
-        AppLanguage.ENGLISH -> "ASK ANOTHER"
+        AppLanguage.ENGLISH -> "Ask another"
     }
 
     fun backToHome(lang: AppLanguage): String = when (lang) {
@@ -230,7 +230,7 @@ object ElderStrings {
     fun explainReport(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "నివేదిక వివరణ వినండి"
         AppLanguage.HINDI -> "रिपोर्ट का विवरण सुनें"
-        AppLanguage.ENGLISH -> "EXPLAIN MY REPORT"
+        AppLanguage.ENGLISH -> "Explain my report"
     }
 
     fun reportDate(lang: AppLanguage, date: String): String = when (lang) {
@@ -261,7 +261,7 @@ object ElderStrings {
     fun callEmergencyContact(lang: AppLanguage): String = when (lang) {
         AppLanguage.TELUGU -> "అత్యవసర సహాయానికి కాల్ చేయండి"
         AppLanguage.HINDI -> "आपातकालीन संपर्क को कॉल करें"
-        AppLanguage.ENGLISH -> "CALL EMERGENCY CONTACT"
+        AppLanguage.ENGLISH -> "Call emergency contact"
     }
 
     fun bloodGroupLabel(lang: AppLanguage): String = when (lang) {

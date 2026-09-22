@@ -80,9 +80,9 @@ fun ElderHomeScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .background(K.Card)
-                    .border(2.dp, K.Border, RoundedCornerShape(20.dp))
+                    .border(1.dp, K.Border, RoundedCornerShape(14.dp))
                     .padding(18.dp),
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -56,9 +56,9 @@ fun ElderNextMedicineHeroCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(K.Card)
-            .border(3.dp, K.Teal, RoundedCornerShape(24.dp))
+            .border(1.5.dp, K.Teal, RoundedCornerShape(14.dp))
             .padding(20.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -153,9 +153,9 @@ fun ElderNextMedicineHeroCard(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(K.Bg)
-                        .border(2.dp, K.Border, RoundedCornerShape(18.dp))
+                        .border(1.dp, K.Border, RoundedCornerShape(14.dp))
                         .clickable(role = Role.Button, onClick = onHearClick)
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center,
@@ -178,7 +178,7 @@ fun ElderNextMedicineHeroCard(
                 Box(
                     modifier = Modifier
                         .weight(1.3f)
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(K.Green)
                         .clickable(role = Role.Button, onClick = onTakenClick)
                         .padding(vertical = 14.dp),
@@ -221,9 +221,9 @@ fun ElderMedicineCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(if (isTaken) K.TealTint.copy(alpha = 0.4f) else K.Card)
-            .border(2.dp, if (isTaken) K.Green else K.Border, RoundedCornerShape(20.dp))
+            .border(1.dp, if (isTaken) K.Green else K.Border, RoundedCornerShape(14.dp))
             .padding(18.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -297,7 +297,7 @@ fun ElderMedicineCard(
                     modifier = Modifier
                         .clip(RoundedCornerShape(14.dp))
                         .background(K.Bg)
-                        .border(1.5.dp, K.Border, RoundedCornerShape(14.dp))
+                        .border(1.dp, K.Border, RoundedCornerShape(14.dp))
                         .clickable(role = Role.Button, onClick = onHearClick)
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     contentAlignment = Alignment.Center,
@@ -334,7 +334,7 @@ fun ElderMedicineCard(
                         modifier = Modifier
                             .clip(RoundedCornerShape(14.dp))
                             .background(K.Bg)
-                            .border(1.5.dp, K.Border, RoundedCornerShape(14.dp))
+                            .border(1.dp, K.Border, RoundedCornerShape(14.dp))
                             .clickable(role = Role.Button, onClick = onLaterClick)
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         contentAlignment = Alignment.Center,
@@ -347,7 +347,7 @@ fun ElderMedicineCard(
                         modifier = Modifier
                             .clip(RoundedCornerShape(14.dp))
                             .background(K.Bg)
-                            .border(1.5.dp, K.Border, RoundedCornerShape(14.dp))
+                            .border(1.dp, K.Border, RoundedCornerShape(14.dp))
                             .clickable(role = Role.Button, onClick = onSkipClick)
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         contentAlignment = Alignment.Center,
@@ -373,9 +373,9 @@ fun ElderHealthCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(if (item.isFlagged) K.WarnBg else K.Card)
-            .border(2.dp, if (item.isFlagged) K.WarnBorder else K.Border, RoundedCornerShape(20.dp))
+            .border(1.dp, if (item.isFlagged) K.WarnBorder else K.Border, RoundedCornerShape(14.dp))
             .padding(18.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -400,7 +400,7 @@ fun ElderHealthCard(
                             .padding(horizontal = 10.dp, vertical = 4.dp),
                     ) {
                         Text(
-                            text = "OUTSIDE RANGE",
+                            text = "Outside range",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
@@ -441,7 +441,7 @@ fun ElderHealthCard(
                 modifier = Modifier
                     .clip(RoundedCornerShape(14.dp))
                     .background(K.Card)
-                    .border(2.dp, K.Teal, RoundedCornerShape(14.dp))
+                    .border(1.dp, K.Teal, RoundedCornerShape(14.dp))
                     .clickable(role = Role.Button, onClick = onExplainClick)
                     .padding(horizontal = 16.dp, vertical = 10.dp),
             ) {
@@ -478,9 +478,9 @@ fun ElderEmergencyCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(K.Card)
-            .border(3.dp, K.WarnIcon, RoundedCornerShape(24.dp))
+            .border(1.5.dp, K.WarnIcon, RoundedCornerShape(14.dp))
             .padding(20.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -528,7 +528,7 @@ fun ElderEmergencyCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(K.WarnIcon)
                         .clickable(role = Role.Button) {
                             val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$emergencyPhone"))

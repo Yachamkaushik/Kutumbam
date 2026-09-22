@@ -217,9 +217,14 @@ internal fun WarningCard(title: String, lines: List<String>, modifier: Modifier 
 }
 
 @Composable
-internal fun EmptyState(title: String, body: String, action: String? = null, onAction: () -> Unit = {}) {
+internal fun EmptyState(title: String, body: String, action: String? = null, onAction: () -> Unit = {}, icon: ImageVector? = null) {
     Card {
         Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (icon != null) {
+                Box(Modifier.padding(bottom = 4.dp).size(48.dp).clip(CircleShape).background(K.TealTint), contentAlignment = Alignment.Center) {
+                    Icon(icon, null, Modifier.size(24.dp), tint = K.Teal)
+                }
+            }
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = K.Ink, textAlign = TextAlign.Center)
             Text(body, fontSize = 13.sp, lineHeight = 19.sp, color = K.Muted, textAlign = TextAlign.Center)
             if (action != null) {
@@ -236,7 +241,7 @@ private fun Welcome(onSetUpSelf: () -> Unit, onAdd: () -> Unit) {
         EmptyState(
             "Welcome to Kutumbam",
             "Start with yourself. You and each family member get your own medicines, reports, readings and reminders, all stored only on this phone.",
-            "Set up your profile", onSetUpSelf,
+            "Set up your profile", onSetUpSelf, icon = KIcons.Heart,
         )
         TextButton(onClick = onAdd, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("Or add a family member first", fontSize = 13.sp, color = K.Muted) }
     }

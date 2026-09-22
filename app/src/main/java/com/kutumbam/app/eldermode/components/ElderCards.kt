@@ -484,17 +484,7 @@ fun ElderEmergencyCard(
             .padding(20.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(KIcons.Alert, null, Modifier.size(20.dp), tint = K.WarnIcon)
-                Text(
-                    text = ElderStrings.emergency(language),
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = K.WarnIcon,
-                    letterSpacing = 0.5.sp,
-                )
-            }
-
+            // The page title above already says "Emergency"; this card leads with who it's for.
             Text(
                 text = memberName,
                 fontFamily = K.Display,

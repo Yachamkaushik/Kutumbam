@@ -18,6 +18,7 @@ import com.kutumbam.app.eldermode.voice.ElderVoiceController
 import com.kutumbam.app.eldermode.voice.ElderVoiceScripts
 import com.kutumbam.app.speech.AppLanguage
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -50,18 +52,20 @@ class ElderViewModel(application: Application) : AndroidViewModel(application) {
     private val selectedMemberId = MutableStateFlow<Long?>(null)
 
     init {
-        // Observe members, medicines, doseLogs, labs, and vitals
+        // Observe members, medicines, doseLogs, labs, and vitals. Re-picks whenever the member list
+        // changes or selectMember() is called, so Elder Mode opens on whoever the family had selected.
+        // flatMapLatest cancels the previous member's medicine/lab collector instead of leaking it.
         viewModelScope.launch {
-            repo.members().collect { members ->
-                if (members.isNotEmpty()) {
-                    val currentId = selectedMemberId.value
+            combine(repo.members(), selectedMemberId) { members, currentId -> members to currentId }
+                .flatMapLatest { (members, currentId) ->
+                    if (members.isEmpty()) return@flatMapLatest flowOf(null)
                     val target = members.firstOrNull { it.id == currentId }
                         ?: members.firstOrNull { !it.isSelf } // elder member preferred
                         ?: members.first()
-                    selectedMemberId.value = target.id
-                    loadMemberData(target)
+                    if (target.id != currentId) selectedMemberId.value = target.id
+                    memberDataFlow(target)
                 }
-            }
+                .collect { transform -> transform?.let { _uiState.update(it) } }
         }
 
         // Keep voice controller states synced with UI state
@@ -77,44 +81,48 @@ class ElderViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun loadMemberData(member: FamilyMember) {
+    /** One state update per change to this member's medicines, doses or labs. Caller collects with flatMapLatest so switching members cancels the previous one's collector instead of leaking it. */
+    private fun memberDataFlow(member: FamilyMember): Flow<(ElderState) -> ElderState> {
         val today = LocalDate.now()
         val lang = AppLanguage.fromCode(member.preferredLanguage)
 
-        viewModelScope.launch {
-            combine(
-                repo.medicines(member.id),
-                repo.doseLogs(today),
-                repo.labHistory(member.id),
-            ) { meds, logs, labs ->
-                val doses = ElderDataAdapter.buildElderDoses(meds, logs, today)
-                val (next, countdown) = ElderDataAdapter.findNextDose(doses, LocalTime.now())
-                val healthItems = ElderDataAdapter.buildHealthItems(labs)
-                val flagged = healthItems.filter { it.isFlagged }
-                val latestReport = labs.lastOrNull()?.date
+        return combine(
+            repo.medicines(member.id),
+            repo.doseLogs(today),
+            repo.labHistory(member.id),
+        ) { meds, logs, labs ->
+            val doses = ElderDataAdapter.buildElderDoses(meds, logs, today)
+            val (next, countdown) = ElderDataAdapter.findNextDose(doses, LocalTime.now())
+            val healthItems = ElderDataAdapter.buildHealthItems(labs)
+            val flagged = healthItems.filter { it.isFlagged }
+            val latestReport = labs.lastOrNull()?.date
 
-                _uiState.update {
-                    it.copy(
-                        memberId = member.id,
-                        memberName = member.name,
-                        relation = member.relation,
-                        isSelf = member.isSelf,
-                        language = lang,
-                        doses = doses,
-                        nextDose = next,
-                        nextDoseCountdown = countdown,
-                        latestReportDate = latestReport,
-                        flaggedItems = flagged,
-                        recentHealthItems = healthItems,
-                        bloodGroup = member.bloodGroup,
-                        allergies = member.allergies,
-                        conditions = member.conditions,
-                        emergencyName = member.emergencyName,
-                        emergencyPhone = member.emergencyPhone,
-                    )
-                }
-            }.collect {}
+            { state: ElderState ->
+                state.copy(
+                    memberId = member.id,
+                    memberName = member.name,
+                    relation = member.relation,
+                    isSelf = member.isSelf,
+                    language = lang,
+                    doses = doses,
+                    nextDose = next,
+                    nextDoseCountdown = countdown,
+                    latestReportDate = latestReport,
+                    flaggedItems = flagged,
+                    recentHealthItems = healthItems,
+                    bloodGroup = member.bloodGroup,
+                    allergies = member.allergies,
+                    conditions = member.conditions,
+                    emergencyName = member.emergencyName,
+                    emergencyPhone = member.emergencyPhone,
+                )
+            }
         }
+    }
+
+    /** Opens Elder Mode on this member, matching whoever the family had selected before entering. Safe to call more than once. */
+    fun selectMember(id: Long) {
+        if (id > 0 && id != selectedMemberId.value) selectedMemberId.value = id
     }
 
     fun navigate(dest: ElderDestination) {

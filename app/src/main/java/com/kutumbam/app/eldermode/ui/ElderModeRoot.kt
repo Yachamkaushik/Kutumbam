@@ -50,6 +50,11 @@ fun ElderModeRoot(
 ) {
     val state by elderViewModel.uiState.collectAsState()
 
+    // Open on whichever family member was selected before entering Elder Mode, not just the first one.
+    LaunchedEffect(appViewModel) {
+        appViewModel?.home?.value?.selected?.id?.let { elderViewModel.selectMember(it) }
+    }
+
     val exitAction: () -> Unit = {
         if (onExit != null) {
             onExit()

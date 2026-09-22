@@ -84,7 +84,7 @@ fun HealthScreen(vm: AppViewModel) {
                 Box(Modifier.padding(bottom = 16.dp))
             }
         } else {
-            Column(Modifier.padding(SIDE)) { EmptyState("No one added yet", "Add a family member to see their medicines, reports and vaccines here.", "Add a family member") { showAdd = true } }
+            Column(Modifier.padding(SIDE)) { EmptyState("No one added yet", "Add a family member to see their medicines, reports and vaccines here.", "Add a family member", { showAdd = true }, KIcons.Heart) }
         }
     }
 
@@ -120,7 +120,7 @@ private fun MedicinesTab(ui: HomeUi, person: String, onScan: () -> Unit, onEdit:
         WarningCard("Possible duplicate medicines", if (more > 0) shown + "+ $more more overlaps" else shown)
     }
     if (ui.supply.isEmpty()) {
-        EmptyState("No medicines yet", "Scan a prescription and $person's medicines will appear here with their schedule and supply.", "Scan a prescription", onScan)
+        EmptyState("No medicines yet", "Scan a prescription and $person's medicines will appear here with their schedule and supply.", "Scan a prescription", onScan, KIcons.Clipboard)
         return
     }
     ui.supply.forEach { row -> MedicineCard(row) { if (!row.asNeeded) onEdit(row) } }
@@ -177,7 +177,7 @@ private fun SupplyDialog(row: SupplyRow, onDismiss: () -> Unit, onSave: (Int) ->
 private fun ReportsTab(ui: HomeUi, vm: AppViewModel, onScan: () -> Unit) {
     ui.alert?.let { a -> WarningCard("Latest report", listOf(a.text), Modifier.clickable { vm.openReport(a.documentId) }) }
     if (ui.reports.isEmpty()) {
-        EmptyState("No lab reports yet", "Scan a lab report and its values will be checked against the range printed on it.", "Scan a report", onScan)
+        EmptyState("No lab reports yet", "Scan a lab report and its values will be checked against the range printed on it.", "Scan a report", onScan, KIcons.FileText)
         return
     }
     ui.reports.forEach { r ->

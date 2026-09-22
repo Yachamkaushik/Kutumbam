@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -108,7 +110,7 @@ fun ElderNextMedicineHeroCard(
                     text = dose.name,
                     fontSize = 26.sp,
                     lineHeight = 32.sp,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontWeight = FontWeight.Bold,
                     color = K.Ink,
                 )
                 if (dose.strength.isNotBlank()) {
@@ -284,9 +286,9 @@ fun ElderMedicineCard(
                 }
             }
 
-            // Action Row
+            // Action Row (scrolls sideways at narrow widths rather than squeezing the labels)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -318,7 +320,7 @@ fun ElderMedicineCard(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Icon(KIcons.Check, null, Modifier.size(20.dp), tint = Color.White)
                         Text(
-                            text = if (isTaken) "✓ Done" else ElderStrings.taken(language),
+                            text = if (isTaken) "Done" else ElderStrings.taken(language),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
@@ -337,7 +339,7 @@ fun ElderMedicineCard(
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text("Later", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = K.Ink)
+                        Text("Later", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = K.Ink, maxLines = 1)
                     }
 
                     // Skip
@@ -350,7 +352,7 @@ fun ElderMedicineCard(
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(ElderStrings.skip(language), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = K.Muted)
+                        Text(ElderStrings.skip(language), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = K.Muted, maxLines = 1)
                     }
                 }
             }
@@ -411,7 +413,7 @@ fun ElderHealthCard(
             Text(
                 text = item.valueText,
                 fontSize = 28.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontWeight = FontWeight.Bold,
                 color = if (item.isFlagged) K.WarnText else K.Ink,
             )
 
@@ -482,16 +484,20 @@ fun ElderEmergencyCard(
             .padding(20.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text(
-                text = "🚨 EMERGENCY MEDICAL ID",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = K.WarnIcon,
-                letterSpacing = 0.5.sp,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(KIcons.Alert, null, Modifier.size(20.dp), tint = K.WarnIcon)
+                Text(
+                    text = ElderStrings.emergency(language),
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = K.WarnIcon,
+                    letterSpacing = 0.5.sp,
+                )
+            }
 
             Text(
                 text = memberName,
+                fontFamily = K.Display,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
                 color = K.Ink,
@@ -533,9 +539,9 @@ fun ElderEmergencyCard(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = "📞 ${ElderStrings.callEmergencyContact(language)}",
+                            text = ElderStrings.callEmergencyContact(language),
                             fontSize = 19.sp,
-                            fontWeight = FontWeight.ExtraBold,
+                            fontWeight = FontWeight.Bold,
                             color = Color.White,
                         )
                         if (!emergencyName.isNullOrBlank()) {

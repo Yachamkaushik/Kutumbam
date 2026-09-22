@@ -57,9 +57,10 @@ fun ElderMedicinesScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = "💊 ${ElderStrings.myMedicines(lang)}",
+                text = ElderStrings.myMedicines(lang),
+                fontFamily = K.Display,
                 fontSize = 28.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontWeight = FontWeight.Bold,
                 color = K.Ink,
             )
 

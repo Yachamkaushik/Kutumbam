@@ -8,9 +8,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -26,6 +28,7 @@ import com.kutumbam.app.eldermode.models.ElderState
 import com.kutumbam.app.eldermode.models.ElderStrings
 import com.kutumbam.app.eldermode.viewmodel.ElderViewModel
 import com.kutumbam.app.ui.theme.K
+import com.kutumbam.app.ui.theme.KIcons
 
 /**
  * Simplified "My Health" Screen for Elder Mode.
@@ -65,9 +68,10 @@ fun ElderHealthScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = "🧪 ${ElderStrings.myHealth(lang)}",
+                text = ElderStrings.myHealth(lang),
+                fontFamily = K.Display,
                 fontSize = 28.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontWeight = FontWeight.Bold,
                 color = K.Ink,
             )
 
@@ -89,16 +93,20 @@ fun ElderHealthScreen(
                         )
                     }
 
-                    Text(
-                        text = if (flaggedCount > 0) {
-                            "⚠️ ${ElderStrings.outsideRange(lang, flaggedCount)}"
-                        } else {
-                            "✓ ${ElderStrings.allLabsNormal(lang)}"
-                        },
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (flaggedCount > 0) K.WarnText else K.Teal,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(
+                            imageVector = if (flaggedCount > 0) KIcons.Alert else KIcons.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = if (flaggedCount > 0) K.WarnIcon else K.Green,
+                        )
+                        Text(
+                            text = if (flaggedCount > 0) ElderStrings.outsideRange(lang, flaggedCount) else ElderStrings.allLabsNormal(lang),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (flaggedCount > 0) K.WarnText else K.Teal,
+                        )
+                    }
                 }
             }
 

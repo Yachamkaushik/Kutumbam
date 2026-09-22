@@ -96,9 +96,10 @@ fun ElderAskScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             Text(
-                text = "🎤 ${ElderStrings.askKutumbam(lang)}",
+                text = ElderStrings.askKutumbam(lang),
+                fontFamily = K.Display,
                 fontSize = 28.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontWeight = FontWeight.Bold,
                 color = K.Ink,
             )
 
@@ -145,7 +146,7 @@ fun ElderAskScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         Text(
-                            text = "🎙 ${ElderStrings.voiceListeningTitle(lang)}",
+                            text = ElderStrings.voiceListeningTitle(lang),
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = K.Teal,
@@ -279,13 +280,16 @@ fun ElderAskScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
-                                Text(
-                                    text = "⚠️ ${ElderStrings.voiceErrorTitle(lang)}",
-                                    fontSize = 19.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = K.WarnText,
-                                    textAlign = TextAlign.Center,
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(KIcons.Alert, null, Modifier.size(20.dp), tint = K.WarnIcon)
+                                    Text(
+                                        text = ElderStrings.voiceErrorTitle(lang),
+                                        fontSize = 19.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = K.WarnText,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                }
                                 if (state.voiceErrorMessage.isNotBlank()) {
                                     Text(
                                         text = state.voiceErrorMessage,

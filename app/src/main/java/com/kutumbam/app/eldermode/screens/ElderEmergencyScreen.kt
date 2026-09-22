@@ -5,10 +5,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -20,6 +24,7 @@ import com.kutumbam.app.eldermode.models.ElderState
 import com.kutumbam.app.eldermode.models.ElderStrings
 import com.kutumbam.app.eldermode.viewmodel.ElderViewModel
 import com.kutumbam.app.ui.theme.K
+import com.kutumbam.app.ui.theme.KIcons
 
 /**
  * Dedicated Emergency / Medical ID Screen for Elder Mode.
@@ -57,12 +62,16 @@ fun ElderEmergencyScreen(
             modifier = Modifier.padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                text = "🚨 ${ElderStrings.emergency(lang)}",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = K.WarnText,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(KIcons.Alert, null, Modifier.size(28.dp), tint = K.WarnText)
+                Text(
+                    text = ElderStrings.emergency(lang),
+                    fontFamily = K.Display,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = K.WarnText,
+                )
+            }
 
             ElderEmergencyCard(
                 memberName = state.memberName,

@@ -120,9 +120,10 @@ fun ElderHeader(
             Column(modifier = Modifier.padding(top = 4.dp)) {
                 Text(
                     text = ElderStrings.greeting(language, memberName),
+                    fontFamily = K.Display,
                     fontSize = 28.sp,
                     lineHeight = 34.sp,
-                    fontWeight = FontWeight.ExtraBold,
+                    fontWeight = FontWeight.Bold,
                     color = K.Ink,
                 )
                 if (relation.isNotBlank()) {

@@ -101,14 +101,14 @@ fun ElderHomeScreen(
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
-                                text = "💊 ${ElderStrings.medicinesCount(lang, state.totalDoses)}",
+                                text = ElderStrings.medicinesCount(lang, state.totalDoses),
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = K.Ink,
                             )
                             if (state.nextDose != null) {
                                 Text(
-                                    text = "🔔 ${ElderStrings.nextMedAt(lang, state.nextDose.timeFormatted)}",
+                                    text = ElderStrings.nextMedAt(lang, state.nextDose.timeFormatted),
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = K.Muted,
@@ -158,7 +158,7 @@ fun ElderHomeScreen(
                                 .padding(horizontal = 14.dp, vertical = 8.dp),
                         ) {
                             Text(
-                                text = "🔊 ${ElderStrings.voiceSpeakingTitle(lang)} (Tap speaker to stop)",
+                                text = "${ElderStrings.voiceSpeakingTitle(lang)} (Tap speaker to stop)",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = K.Teal,

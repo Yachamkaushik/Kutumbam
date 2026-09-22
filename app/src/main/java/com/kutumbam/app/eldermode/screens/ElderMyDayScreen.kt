@@ -75,9 +75,10 @@ fun ElderMyDayScreen(
         ) {
             // Screen Title
             Text(
-                text = "📅 ${ElderStrings.myDay(lang)}",
+                text = ElderStrings.myDay(lang),
+                fontFamily = K.Display,
                 fontSize = 28.sp,
-                fontWeight = FontWeight.ExtraBold,
+                fontWeight = FontWeight.Bold,
                 color = K.Ink,
             )
 
@@ -183,9 +184,9 @@ fun ElderMyDayScreen(
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = "⚠ RECENT LAB ALERT",
+                            text = "RECENT LAB ALERT",
                             fontSize = 15.sp,
-                            fontWeight = FontWeight.ExtraBold,
+                            fontWeight = FontWeight.Bold,
                             color = K.WarnIcon,
                         )
                         Text(

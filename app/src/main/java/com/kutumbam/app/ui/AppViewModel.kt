@@ -93,10 +93,26 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import com.kutumbam.app.calendar.CalendarEngine
+import com.kutumbam.app.calendar.CalendarEventType
+import com.kutumbam.app.calendar.CalendarItem
+import com.kutumbam.app.calendar.DayIndicators
+import com.kutumbam.app.data.FollowUpVisit
 
-enum class Screen { HOME, HEALTH, CONFIRM, ELDER, REPORT, TREND, CHILD, ASK, DEV, VISIT, MEDICAL_ID }
+enum class Screen { HOME, HEALTH, CONFIRM, ELDER, REPORT, TREND, CHILD, ASK, DEV, VISIT, MEDICAL_ID, CALENDAR }
+
+data class CalendarUi(
+    val selectedDate: LocalDate = LocalDate.now(),
+    val currentMonth: YearMonth = YearMonth.now(),
+    val members: List<FamilyMember> = emptyList(),
+    val filterMemberId: Long? = null,
+    val eventsByDate: Map<LocalDate, List<CalendarItem>> = emptyMap(),
+    val indicators: Map<LocalDate, DayIndicators> = emptyMap(),
+    val selectedDayEvents: List<CalendarItem> = emptyList(),
+)
 
 data class DoseRow(
     val medicineId: Long,
@@ -429,9 +445,102 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             Screen.HEALTH -> openHealth()
             Screen.ASK -> openAsk()
             Screen.VISIT -> openVisit()
+            Screen.CALENDAR -> openCalendar()
             else -> _screen.value = screen
         }
     }
+
+    private val _calendarDate = MutableStateFlow(LocalDate.now())
+    private val _calendarMonth = MutableStateFlow(YearMonth.now())
+    private val _calendarMemberFilter = MutableStateFlow<Long?>(null)
+    private var calendarReturn = Screen.HOME
+    private val _calendarRefresh = MutableStateFlow(0)
+
+    val calendar: StateFlow<CalendarUi> = combine(
+        repo.members(),
+        repo.allVisits(),
+        _calendarDate,
+        _calendarMonth,
+        _calendarMemberFilter,
+        _calendarRefresh,
+    ) { args: Array<Any?> ->
+        val members = args[0] as List<FamilyMember>
+        val visits = args[1] as List<FollowUpVisit>
+        val selectedDate = args[2] as LocalDate
+        val month = args[3] as YearMonth
+        val filterId = args[4] as Long?
+
+        val today = LocalDate.now()
+        val from = month.atDay(1).minusDays(7)
+        val to = month.atEndOfMonth().plusDays(7)
+        val meds = repo.allMedicines()
+        val logs = repo.takenSince(today)
+        val childMembers = members.filter { it.relation.equals("Child", ignoreCase = true) }
+        val imms = childMembers.associate { it.id to repo.immunizationsNow(it.id) }
+        val events = CalendarEngine.generate(members, meds, logs, visits, imms, today, from, to, filterId)
+        val indicators = CalendarEngine.buildIndicators(events)
+        val dayEvents = events[selectedDate] ?: emptyList()
+        CalendarUi(
+            selectedDate = selectedDate,
+            currentMonth = month,
+            members = members,
+            filterMemberId = filterId,
+            eventsByDate = events,
+            indicators = indicators,
+            selectedDayEvents = dayEvents,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CalendarUi())
+
+    fun openCalendar() {
+        calendarReturn = _screen.value.takeIf { it != Screen.CALENDAR } ?: Screen.HOME
+        _calendarDate.value = LocalDate.now()
+        _calendarMonth.value = YearMonth.now()
+        _screen.value = Screen.CALENDAR
+    }
+
+    fun selectCalendarDate(date: LocalDate) {
+        _calendarDate.value = date
+        val ym = YearMonth.from(date)
+        if (ym != _calendarMonth.value) _calendarMonth.value = ym
+    }
+
+    fun nextCalendarMonth() { _calendarMonth.value = _calendarMonth.value.plusMonths(1) }
+    fun prevCalendarMonth() { _calendarMonth.value = _calendarMonth.value.minusMonths(1) }
+    fun filterCalendarMember(id: Long?) { _calendarMemberFilter.value = id }
+
+    fun addFollowUpVisit(memberId: Long, doctorOrClinic: String, date: LocalDate, time: LocalTime?, reason: String?) {
+        val clinic = doctorOrClinic.trim()
+        if (clinic.isEmpty()) { _message.value = "Enter doctor or clinic name."; return }
+        viewModelScope.launch {
+            repo.addVisit(FollowUpVisit(
+                memberId = memberId,
+                doctorOrClinic = clinic,
+                date = date.toString(),
+                time = time?.toString(),
+                reason = reason?.trim()?.ifEmpty { null },
+            ))
+            _calendarRefresh.value++
+            _message.value = "Follow-up visit added."
+        }
+    }
+
+    fun deleteFollowUpVisit(id: Long) {
+        viewModelScope.launch {
+            repo.deleteVisit(id)
+            _calendarRefresh.value++
+            _message.value = "Follow-up visit removed."
+        }
+    }
+
+    fun toggleCalendarDose(item: CalendarItem) {
+        val today = LocalDate.now()
+        if (item.date != today || item.medicineId == null || item.time == null) return
+        viewModelScope.launch {
+            repo.setDose(item.medicineId, today, item.time.toString(), !item.isTaken)
+            _calendarRefresh.value++
+        }
+    }
+
 
     /** Growth entries for the selected child, oldest first. */
     val growth: StateFlow<List<Measurement>> = home.map { it.selected }.distinctUntilChanged().flatMapLatest { member ->
@@ -677,6 +786,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             Screen.TREND -> _screen.value = if (reportDoc.value != null) Screen.REPORT else Screen.HOME
             Screen.CHILD -> _screen.value = Screen.HOME
             Screen.VISIT -> _screen.value = visitReturn
+            Screen.CALENDAR -> _screen.value = calendarReturn
             Screen.MEDICAL_ID -> _screen.value = Screen.HEALTH
             Screen.ASK -> { stopListening(); kApp.speaker.stop(); _screen.value = askReturn }
             else -> _screen.value = Screen.HOME

@@ -99,11 +99,26 @@ fun HomeScreen(vm: AppViewModel) {
         } else {
             val taken = ui.doses.count { it.taken }
             Column(Modifier.padding(horizontal = SIDE).padding(top = 20.dp)) {
-                Text("Today", fontFamily = K.Display, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = K.Ink)
-                Text(
-                    "${if (member.isSelf) "You" else member.name} · ${LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.ENGLISH))}",
-                    fontSize = 13.sp, color = K.Muted, modifier = Modifier.padding(top = 2.dp),
-                )
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Today", fontFamily = K.Display, fontSize = 28.sp, fontWeight = FontWeight.Bold, color = K.Ink)
+                        Text(
+                            "${if (member.isSelf) "You" else member.name} · ${LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.ENGLISH))}",
+                            fontSize = 13.sp, color = K.Muted, modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = { vm.openCalendar() },
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, K.Border),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = K.Ink),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.height(36.dp),
+                    ) {
+                        Icon(KIcons.Calendar, null, Modifier.size(15.dp), tint = K.Teal)
+                        Text("  Calendar", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = K.Ink)
+                    }
+                }
                 if (ui.doses.isNotEmpty()) {
                     Spacer(Modifier.height(14.dp))
                     val fraction = taken.toFloat() / ui.doses.size

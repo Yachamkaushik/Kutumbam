@@ -5,6 +5,7 @@ import com.kutumbam.app.data.FamilyMember
 import com.kutumbam.app.data.LabValueEntity
 import com.kutumbam.app.data.MedicineEntity
 import com.kutumbam.app.data.Repository
+import com.kutumbam.app.data.toReading
 import com.kutumbam.app.eldermode.models.DoseStatus
 import com.kutumbam.app.eldermode.models.ElderDose
 import com.kutumbam.app.eldermode.models.ElderHealthItem
@@ -18,12 +19,14 @@ import com.kutumbam.app.locker.Source
 import com.kutumbam.app.locker.SourceKind
 import com.kutumbam.app.parse.DoseUnits
 import com.kutumbam.app.parse.FrequencyCode
+import com.kutumbam.app.parse.ImmunizationEngine
 import com.kutumbam.app.parse.MealTiming
 import com.kutumbam.app.parse.RangeCheck
 import com.kutumbam.app.parse.RangeStatus
 import com.kutumbam.app.parse.TestNames
 import com.kutumbam.app.parse.describeRange
 import com.kutumbam.app.parse.formatNumber
+import com.kutumbam.app.ui.isChildWithDob
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -189,15 +192,20 @@ object ElderDataAdapter {
             )
         }
 
+        val plan = if (member.isChildWithDob()) {
+            val dob = LocalDate.parse(member.dateOfBirth)
+            ImmunizationEngine.plan(dob, repo.immunizationsNow(member.id).associate { it.scheduleId to LocalDate.parse(it.administeredDate) }, today)
+        } else null
+
         val lockerData = LockerData(
             person = member.name,
             today = today,
             medicines = meds,
             labs = labs,
-            immunization = null,
+            immunization = plan,
             self = member.isSelf,
-            readings = emptyList(),
-            limits = emptyMap(),
+            readings = repo.vitalsNow(member.id).mapNotNull { it.toReading() },
+            limits = repo.targetsNow(member.id).mapNotNull { t -> t.high?.let { t.key to it } }.toMap(),
         )
 
         val retrieved: Retrieved = Retrieval.retrieve(question, lockerData)

@@ -32,7 +32,7 @@ photo / WhatsApp share  ->  ML Kit OCR  ->  rule-based parser  ->  confirm & cor
 | Report alert screen (values vs the range printed on the report, small labelled fallback table) | Built, verified on emulator |
 | Trend chart from stored values, with plain-language summary (on-device AI rewrites it when a model is loaded) | Built, chart verified on emulator; AI summary needs a phone with the model |
 | Medicine reminders (exact alarms, editable times, Taken button on the notification) | Built, verified on emulator |
-| Elder voice mode (large buttons, spoken in Telugu / Hindi / English) | Built, verified on emulator except audio quality |
+| Elder voice mode (large-button hub, spoken My Day summary, per-medicine Taken/Later/Skip, 5-state voice Ask with the same safety rules as Ask the Locker, simplified health screen, emergency screen with 1-tap dialer; Telugu primary, Hindi/English) | Built, verified on emulator except audio quality and voice input |
 | Child profile and immunization timeline (India UIP schedule engine, vaccination card scan, mark-as-given, daily due/overdue reminder) | Built, verified on emulator |
 | Ask-the-Locker (retrieval over stored records, refuses medical advice, grounding check on the on-device AI, sources shown, voice input and read-aloud) | Built, verified on emulator except voice and the AI answer path |
 | Refill predictor (walks the schedule from the moment the tablets were counted, using each dose's own tablet count; daily 9:30 reminder from 3 days ahead; recount after a refill; answers "when will it run out?" in Ask) | Built, verified on emulator |
